@@ -13,6 +13,9 @@ Every reply carries ``boundary`` (awaiting_input, awaiting_choice or terminal), 
 
 Also here: ``recorded_action``, which turns a tape's net actions into the same caller vocabulary. It is what
 the parity test feeds through ``step``.
+
+``start_run`` / ``run_step`` keep one native RunState across rooms. Each call is recorded as JSONL at
+``run_trace_path`` in the worker's scratch directory.
 """
 
 import json
@@ -42,6 +45,8 @@ class CombatWorker:
         self._proc = subprocess.Popen(["dotnet", str(BINARY)], cwd=self.workdir, text=True, bufsize=1,
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._log)
         self.boot_ms = self._read()["boot_ms"]
+        self.run_trace_path = None
+        self._run_trace = None
 
     def _read(self):
         line = self._proc.stdout.readline()
@@ -57,7 +62,8 @@ class CombatWorker:
         return self._read()
 
     def load(self, mcr):
-        return self.request("load", mcr=str(mcr))
+        # The worker runs in its own scratch directory, so hand it an absolute path.
+        return self.request("load", mcr=str(Path(mcr).resolve()))
 
     def start(self, spec):
         """Enter any fight from a spec: character, ascension, seed, encounter and a partial save player (see
@@ -67,6 +73,39 @@ class CombatWorker:
     def catalog(self):
         return self.request("catalog")
 
+    def start_run(self, character, seed, ascension=0, unlocks="all"):
+        """Start one continuous native run. ``unlocks`` is ``all`` or fresh-profile ``none``."""
+        spec = {"character": character, "seed": seed, "ascension": ascension, "unlocks": unlocks}
+        reply = self.request("start_run", spec=spec)
+        if self._run_trace:
+            self._run_trace.close()
+        self.run_trace_path = self.workdir / f"run-{reply['run_identity']}.jsonl"
+        self._run_trace = open(self.run_trace_path, "w")
+        self._record_run({"type": "start_run", **spec}, reply)
+        return reply
+
+    def run_step(self, action):
+        try:
+            reply = self.request("run_step", action=action)
+        except WorkerError as error:
+            self._record_run(action, {"ok": False, "error": str(error)})
+            raise
+        self._record_run(action, reply)
+        return reply
+
+    def _record_run(self, action, reply):
+        if self._run_trace:
+            self._run_trace.write(json.dumps({"action": action, "state": reply}, separators=(",", ":")) + "\n")
+            self._run_trace.flush()
+
+    def run_combat_snapshot(self, path):
+        """Write the game's own recording of the current run combat as an .mcr. Its initial state is the run as it
+        entered this room, so another worker's ``load`` re-enters the same fight while this run carries on."""
+        return self.request("run_combat_snapshot", path=str(Path(path).resolve()))
+
+    def run_observe(self):
+        return self.request("run_observe")
+
     def step(self, action):
         return self.request("step", action=action)
 
@@ -74,13 +113,16 @@ class CombatWorker:
         return self.request("observe")
 
     def tape(self, mcr):
-        return self.request("tape", mcr=str(mcr))
+        return self.request("tape", mcr=str(Path(mcr).resolve()))
 
     def close(self):
         if self._proc.poll() is None:
             self._proc.stdin.write(json.dumps({"cmd": "quit"}) + "\n")
             self._proc.stdin.close()
             self._proc.wait(timeout=30)
+        self._proc.stdout.close()
+        if self._run_trace:
+            self._run_trace.close()
         self._log.close()
 
     def __enter__(self):

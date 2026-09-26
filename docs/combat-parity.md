@@ -32,6 +32,7 @@ research/combat_parity/setup.sh                                  # pinned sts2-c
 python3 -m unittest research.combat_parity.test_recorded_combat -v
 python3 -m unittest research.combat_parity.test_step_worker -v
 python3 -m unittest research.combat_parity.test_combat_spec -v
+python3 -m unittest research.combat_parity.test_run_worker -v
 ```
 
 `setup.sh` needs an installed Slay the Spire 2 v0.111.0. On macOS it looks in
@@ -107,8 +108,10 @@ with CombatWorker() as w:
   whole enemy turn and the next turn's start.
 - **Reply.**
   - `obs`: the encounter, HP, block, energy, powers, orbs, potions, the relic
-    bar (displayed counters, used up), hand with costs and playability, piles
-    (draw as a multiset), and enemies with their intents.
+    bar (displayed counters, used up), hand with costs, playability and the
+    numbers the card text shows (`vars`: the game's display preview, which
+    never feeds game state), piles (draw as a multiset), and enemies with
+    their intents.
   - `legal`: every input valid at this boundary, in the same shape the
     worker accepts.
   - `choice`: the options, when a choice is pending.
@@ -136,6 +139,82 @@ diverging. Measured cost on this Mac: worker boot ≈ 460 ms, combat load
 No recording yet checks potions, multiple enemies, hook actions or
 multi-card picks. All of them run in the random-policy sweeps below, but a
 sweep shows that a fight plays out, not that it plays out as the game would.
+
+## Run one native state across rooms
+
+`start_run` creates a seeded singleplayer `RunState`, calls the game's new-run setup,
+finalizes starting relics, and enters act 1. One `RunManager` owns every subsequent
+decision. The Python client writes each accepted or refused input and its reply to
+`worker.run_trace_path` as JSONL in its scratch directory.
+
+```python
+from research.combat_parity.combat_worker import CombatWorker
+
+with CombatWorker() as worker:
+    state = worker.start_run("CHARACTER.IRONCLAD", "RUNMILESTONE", ascension=10, unlocks="all")
+    while state["boundary"] != "terminal":
+        action = policy(state)
+        state = worker.run_step(action)
+    print(worker.run_trace_path)
+```
+
+- The target is Ascension 10 with every unlock (`ascension=10, unlocks="all"`).
+  `unlocks="all"` starts at Neow's Ancient event; `"none"` uses the game's
+  fresh-profile path and starts at the first map choice. Ascension defaults to 0,
+  so pass it.
+- `boundary` identifies the next decision: `event`, `awaiting_map`, `combat`,
+  `awaiting_rewards`, `awaiting_proceed`, `rest`, `shop`, `treasure`,
+  `treasure_relic`, `awaiting_room_choice`, `awaiting_bundle`, or `terminal`.
+  `legal` lists single-choice actions; during combat, use
+  `state["combat"]["legal"]`. For a multi-card choice, send
+  `{"type":"choose","picks":[...]}` using the `choice` options and min/max.
+- Map input votes through `VoteForMapCoordAction`. Combat uses the same human
+  action path as `step`. A victory offers rewards through
+  `CombatRoom.OfferRoomEndRewards`; selecting a reward uses
+  `RewardsSetSynchronizer.SelectLocalReward`. Room options and rest choices use
+  game synchronizers, shop purchases use native inventory entries, and treasure
+  relic picks use the treasure synchronizer. The headless worker grants the
+  relic from its `RelicsAwarded` event because the shipped UI handler is absent.
+  Bundle
+  choices reserve and synchronize the game's choice ID; the substrate's
+  first-bundle shortcut is removed for runs.
+- Rewards are a stack of offered sets. Taking a reward can open a card choice
+  (Precise Scissors removes a card) or offer another set before the first one
+  finishes (Kaleidoscope, from Neow's Bones). The inner decision comes back as
+  its own `awaiting_room_choice` or `awaiting_rewards`, and the outer set resumes
+  after it. Only card rewards use `CardSelectCmd`'s global selector. Everything
+  else a reward opens takes the local choice path, which reserves a choice id.
+- An event option that throws inside the game is an error, not a silent
+  no-op. `EventOption.Chosen` runs under `TaskHelper.RunSafely`, which otherwise
+  leaves the event on the same page.
+- `run_combat_snapshot(path)` writes the game's own recording of the current
+  fight as an `.mcr`. The shipped `CombatReplayWriter` is on for runs; sts2-cli's
+  TestMode turns it off. Its initial state is the run as it entered the room, so
+  another worker's `load` re-enters the same fight, hash for hash, while the run
+  carries on. The snapshot is not anonymised, because the anonymiser swaps the
+  player id and the hash covers it.
+- Each reply includes run and state identity, current room and map coordinate,
+  the point types one map row on, player HP, gold, deck, relics, potions, both RNG sets, offered rewards or shop
+  entries, and any game errors. Combat replies retain the game's combat hash
+  and action checkpoints. The model-ID hash identifies the loaded model set;
+  headless `game_version` currently reports `UNKNOWN` because the substrate
+  does not load `release_info.json`.
+
+[`test_run_worker.py`](test_run_worker.py) checks a deterministic seed through
+two combats with the same state identity and native rewards; an unlocked start
+through Neow and its reward set or a selected card bundle; a shop purchase; a
+route through event, treasure, rest and elite rooms to death; and a boss win
+that enters act 2 and its first combat without rebuilding `RunState` (skipped
+for now: its seed no longer wins the act 1 boss once the map offers the act's
+starting point). It also checks nested reward sets, a relic reward that opens
+a deck choice, and a combat snapshot re-entered in another worker hash for
+hash. Final victory has not been exercised. The last act's move to the next
+act now enters the Architect's room, and its option calls `WinRun`; a run ends
+there with `victory: true` and every player at 0 HP, as the game ends it. Card
+reward rerolls and Pael's Wing sacrifices are wired in but no test seed
+reaches them. The JSONL
+trace records this worker's decisions and states; fidelity needs a
+separate decision-by-decision capture from the shipped game.
 
 ## Start any combat
 
@@ -236,7 +315,13 @@ The Insatiable fight never touched these gaps. Any fight might.
   node is null, so the turn loop died with the elite.
   `Substrate.HeadlessGuards` patches that one method with Harmony. It keeps
   the unsubscription and drops the animation. Other UI dereferences in model
-  code are behind TestMode or null-node checks.
+  code are behind TestMode or null-node checks, with one exception found by the
+  run sweeps. Four event and rest-site paths call `NDebugAudioManager.Instance.Play`
+  or `.Stop` without `?.`: Jungle Maze Adventure, Dense Vegetation, Doll Room
+  and the Dig rest option. Jungle Maze's Join Forces died before its gold.
+  Headless, `Instance` is now a silent stand-in whose `Play`, `Stop` and `StopAll`
+  do nothing. Harmony needs every member those bodies reference, so the stubs
+  patch adds four `AudioStreamPlayer` members.
 - **Errors the game swallows.** `TaskHelper.RunSafely` and the turn loop log
   an exception and carry on. Every reply now carries the game's error-level
   log lines as `game_errors`. A dead turn loop or a combat that fails to
@@ -259,12 +344,16 @@ these changes.
 | [`fixtures/7TA07BQT5BSJ-f33-the-insatiable.spgn-excerpt.json`](fixtures/7TA07BQT5BSJ-f33-the-insatiable.spgn-excerpt.json) | The same fight as the Spirebird recorder saw it: header, boundaries with RNG counters and state anchors, inputs, and 49 checksums. State dumps are omitted |
 | [`ReplayCheck/`](ReplayCheck/) | C# harness. Reads the tape with the game's `PacketReader`, replays it as `NMultiplayerTest.RunReplay` does, and compares every checksum by id |
 | [`fixtures/7TA07BQT5BSJ.run`](fixtures/7TA07BQT5BSJ.run) | The same run's history file from `saves/history`, byte-for-byte: the spec source the rebuilt-fight test reads |
-| [`CombatWorker/`](CombatWorker/), [`combat_worker.py`](combat_worker.py) | The steppable worker and its Python client, described above; [`CombatSpec.cs`](CombatWorker/CombatSpec.cs) and `spec_from_run` start a fight from a spec |
+| [`CombatWorker/`](CombatWorker/), [`combat_worker.py`](combat_worker.py) | The combat and continuous-run worker with its Python client; `CombatSpec.cs` starts a fight from a spec, `RunSession.cs` keeps one native run, and `BundleSelector.cs` exposes bundle choices |
 | [`Substrate/`](Substrate/) | Build properties and the code both C# drivers share: boot, checkpoint restoring, hashing, the deferred-call flush and the headless guards |
 | [`spgn.py`](spgn.py) | Spirebird tape reader. It regenerates the excerpt from a local tape and needs `cbor2` ([requirements](requirements-combat-parity.txt)) |
 | [`setup.sh`](setup.sh) | Clones sts2-cli at `084d1aa` into the gitignored `.work/`, applies the stubs patch, and runs its setup |
 | [`test_recorded_combat.py`](test_recorded_combat.py) | The replay test |
 | [`test_step_worker.py`](test_step_worker.py) | The same fight driven through `step` by a caller |
+| [`test_run_worker.py`](test_run_worker.py) | Seeded run decisions through rooms, rewards, death and an act transition; nested reward sets; a combat snapshot re-entered in another worker |
+| [`play_run.py`](play_run.py) | Plays one A10 run to its end: fights searched on snapshot copies, the rest by priors |
+| [`sweep_runs.py`](sweep_runs.py) | Many seeded runs in parallel processes; with `--sims 0`, a fast sweep of the run adapters |
+| [`run_priors.py`](run_priors.py) | Out-of-combat priors: Spirebird A10 card Elo and skip Elo; Codex A10 relic, ancient and event counts |
 | [`test_combat_spec.py`](test_combat_spec.py) | Fights started from specs: the recorded one rebuilt, every encounter, refusals |
 | [`sts2-cli-stubs.patch`](sts2-cli-stubs.patch) | Godot members the stubs lack that combat code calls; applied by `setup.sh` |
 | [`docs/findings-2026-09-26.md`](docs/findings-2026-09-26.md) | Tape anatomy, the sts2-cli and AutoSlay audits, candidate comparison, next patch |

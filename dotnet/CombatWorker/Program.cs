@@ -8,6 +8,10 @@
 //   {"cmd":"observe"}                       the current boundary again, without acting
 //   {"cmd":"tape","mcr":"<path>"}           the recorded inputs and checkpoints, decoded (no game state touched)
 //   {"cmd":"catalog"}                       the characters and encounters a spec can name
+//   {"cmd":"start_run","spec":{...}}       start a seeded native run (character, seed, ascension?, unlocks?)
+//   {"cmd":"run_step","action":{...}}     take the next run-level or combat decision
+//   {"cmd":"run_observe"}                   report the current run boundary again
+//   {"cmd":"run_combat_snapshot","path":…} write the game's recording of the current fight as an .mcr to `load`
 //   {"cmd":"quit"}
 //
 // Every input goes through the path a human click takes: CardModel.TryManualPlay's body, the end-turn button's
@@ -44,6 +48,7 @@ static class Worker
         protocol.WriteLine(JsonSerializer.Serialize(new { ok = true, ready = true, boot_ms = boot.Elapsed.TotalMilliseconds }, Json));
 
         CombatSession? session = null;
+        RunSession? runSession = null;
         string? line;
         while ((line = Console.In.ReadLine()) != null)
         {
@@ -54,12 +59,18 @@ static class Worker
                 JsonObject req = JsonNode.Parse(line)!.AsObject();
                 string cmd = (string?)req["cmd"] ?? throw new ArgumentException("missing cmd");
                 if (cmd == "quit") break;
+                if (cmd == "start_run") session = null;
+                if (cmd is "load" or "start") runSession = null;
                 response = cmd switch
                 {
                     "load" => (session = CombatSession.Load((string)req["mcr"]!)).Report("load"),
                     "start" => (session = CombatSession.Start(req["spec"]?.AsObject() ?? throw new ArgumentException("missing spec"))).Report("load"),
                     "step" => (session ?? throw new InvalidOperationException("no combat loaded")).Step(req["action"]?.AsObject() ?? throw new ArgumentException("missing action")),
                     "observe" => (session ?? throw new InvalidOperationException("no combat loaded")).Report("observe"),
+                    "start_run" => (runSession = RunSession.Start(req["spec"]?.AsObject() ?? throw new ArgumentException("missing spec"))).Report(),
+                    "run_step" => (runSession ?? throw new InvalidOperationException("no run started")).Step(req["action"]?.AsObject() ?? throw new ArgumentException("missing action")),
+                    "run_observe" => (runSession ?? throw new InvalidOperationException("no run started")).Report(),
+                    "run_combat_snapshot" => (runSession ?? throw new InvalidOperationException("no run started")).CombatSnapshot((string)req["path"]!),
                     "tape" => Tape.Read((string)req["mcr"]!),
                     "catalog" => CombatSpec.Catalog(),
                     _ => throw new ArgumentException($"unknown cmd {cmd}"),

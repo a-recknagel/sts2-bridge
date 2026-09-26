@@ -22,6 +22,7 @@ using MegaCrit.Sts2.Core.Multiplayer;
 using MegaCrit.Sts2.Core.Multiplayer.Game.PeerInput;
 using MegaCrit.Sts2.Core.Multiplayer.Replay;
 using MegaCrit.Sts2.Core.Rooms;
+using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.TestSupport;
@@ -31,6 +32,7 @@ using static Substrate;
 sealed class CombatSession
 {
     static IDisposable? _selectorScope;
+    static IDisposable? _rewardSelectorScope;
     // Error-level lines the game logged since the last reply. TaskHelper.RunSafely and the turn loop log an exception
     // and carry on, so a fight can be broken without anything throwing at the worker.
     static readonly List<string> _gameErrors = new();
@@ -55,6 +57,45 @@ sealed class CombatSession
         _run = run;
         _me = run.Players[0];
     }
+
+    // A continuous run owns the RunState and RunManager. Attach the proven combat input path without loading a
+    // save, cleaning up, or entering a debug room. The caller attaches before voting for its first combat node.
+    public static CombatSession Attach(RunState run)
+    {
+        _selectorScope?.Dispose();
+        _rewardSelectorScope?.Dispose();
+        lock (_gameErrors) _gameErrors.Clear();
+        var session = new CombatSession(run);
+        RunManager rm = RunManager.Instance;
+        rm.ChecksumTracker.IsEnabled = true;
+        rm.ChecksumTracker.ChecksumGenerated += (data, context, _) =>
+            session._checkpoints.Add(new { id = data.id, hash = data.checksum, context = NormalizeContext(context) });
+        RestorePostActionChecksum();
+        rm.ActionQueueSet.ActionEnqueued += a => session._enqueued.Add(a);
+        rm.CombatStateSynchronizer.IsDisabled = true;
+        _selectorScope = CardSelectCmd.UseSelector(session._selector, localOnly: true);
+        return session;
+    }
+
+    public void WaitForBoundary() => AwaitBoundary();
+
+    public void SetRewardCardPick(int cardIndex) => _selector.RewardCardPick = cardIndex;
+    public void SetRewardAlternative(string optionId) => _selector.RewardAlternative = optionId;
+    public static List<string> DrainGameErrors() => TakeGameErrors();
+    public static bool HasGameErrors => AnyGameError;
+    public bool HasPendingRunChoice => _selector.Pending != null;
+    public object? RunChoice => _selector.Pending?.Describe(this);
+    public List<object> RunChoiceLegal => _selector.Pending?.LegalPicks() ?? new List<object>();
+    public void AnswerRunChoice(JsonObject action)
+    {
+        if (action["picks"] is not JsonArray picks) throw new ArgumentException("choice needs picks");
+        _selector.Answer(picks.Select(p => (int)p!).ToList());
+    }
+
+    // CardReward consults CardSelectCmd.Selector, whereas combat choices consult LocalSelector. Keep the global
+    // selector scoped to rewards so combat choice ids continue through the game's normal local choice path.
+    public void EnableRewardSelector() => _rewardSelectorScope ??= CardSelectCmd.UseSelector(_selector);
+    public void DisableRewardSelector() { _rewardSelectorScope?.Dispose(); _rewardSelectorScope = null; }
 
     // A recorded fight: the .mcr's initial state, its id cursors, and the room it was saved in.
     public static CombatSession Load(string mcrPath)
@@ -101,6 +142,10 @@ sealed class CombatSession
     {
         if (RunManager.Instance.IsInProgress) RunManager.Instance.CleanUp(graceful: true);
         _selectorScope?.Dispose(); // CardSelectCmd.Reset leaves selectors alone while TestMode is on
+        _rewardSelectorScope?.Dispose();
+        _rewardSelectorScope = null;
+        RewardsSet.testSelector = null;
+        BundleSelector.Deactivate();
         lock (_gameErrors) _gameErrors.Clear();
 
         RunState run = RunState.FromSerializable(save);
@@ -366,7 +411,16 @@ sealed class CombatSession
         type = c.Type.ToString(),
         target = c.TargetType.ToString(),
         playable = c.CanPlay(),
+        vars = Vars(c),
     };
+
+    // The numbers the card's text shows. In hand they are the game's untargeted preview (strength, weak, relics...),
+    // computed as NCard computes them for display; PreviewValue is display-only and never feeds game state.
+    static Dictionary<string, int> Vars(CardModel c)
+    {
+        if (c.IsMutable && c.Pile?.Type == PileType.Hand) c.UpdateDynamicVarPreview(CardPreviewMode.Normal, null, c.DynamicVars);
+        return c.DynamicVars.Values.ToDictionary(v => v.Name, v => (int)(c.Pile?.Type == PileType.Hand ? v.PreviewValue : v.EnchantedValue));
+    }
 
     static List<object> Powers(Creature c) => c.Powers.Select(p => (object)new { id = p.Id.ToString(), amount = p.Amount }).ToList();
 
@@ -392,6 +446,8 @@ sealed class CombatSession
     sealed class CallerSelector : ICardSelector
     {
         public PendingChoice? Pending { get; private set; }
+        public int? RewardCardPick { get; set; }
+        public string? RewardAlternative { get; set; }
 
         public Task<IEnumerable<CardModel>> GetSelectedCards(IEnumerable<CardModel> options, int minSelect, int maxSelect)
         {
@@ -399,8 +455,23 @@ sealed class CombatSession
             return Pending.Result.Task;
         }
 
+        // The card reward screen's answer. It is asked synchronously, and asked again after an alternative that keeps
+        // the screen open (a reroll) or a pick that allows another: with nothing supplied, the answer is "close the
+        // screen", as a player may. A rerolled reward then stays in its set with its new cards, to be taken again.
         public CardRewardSelection GetSelectedCardReward(IReadOnlyList<CardCreationResult> options, IReadOnlyList<CardRewardAlternative> alternatives)
-            => throw new NotSupportedException("card rewards are outside combat");
+        {
+            if (RewardAlternative is string optionId)
+            {
+                RewardAlternative = null;
+                return new CardRewardSelection { alternative = alternatives.FirstOrDefault(a => a.OptionId == optionId)
+                    ?? throw new ArgumentException($"card reward has no {optionId} option") };
+            }
+            if (RewardCardPick is not int index) return default;
+            RewardCardPick = null;
+            if (index < 0 || index >= options.Count)
+                throw new ArgumentException($"card reward index {index} out of range ({options.Count} cards)");
+            return new CardRewardSelection { card = options[index].Card };
+        }
 
         public void Answer(List<int> picks)
         {

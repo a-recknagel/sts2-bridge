@@ -127,7 +127,7 @@ index fb9b33f..f532f3f 100644
 +    }
 +}
 diff --git a/src/GodotStubs/UI.cs b/src/GodotStubs/UI.cs
-index 7017644..82fd7a7 100644
+index 7017644..39e5267 100644
 --- a/src/GodotStubs/UI.cs
 +++ b/src/GodotStubs/UI.cs
 @@ -8,6 +8,8 @@ public class CanvasItem : Node
@@ -139,3 +139,15 @@ index 7017644..82fd7a7 100644
      public bool IsVisibleInTree() => Visible;
      public Tween CreateTween() => new Tween();
      public Rect2 GetViewportRect() => new Rect2(Vector2.Zero, new Vector2(1920, 1080));
+@@ -308,6 +310,11 @@ public class AudioStreamPlayer : Node
+     }
+     public AudioStream? Stream { get; set; }
+     public float VolumeDb { get; set; }
++    // NDebugAudioManager.Play sets these; event and rest-site code reaches it (see HeadlessGuards).
++    public float VolumeLinear { get; set; }
++    public float PitchScale { get; set; }
++    public StringName Bus { get; set; } = "Master";
++    public bool IsPlaying() => false;
+     public void Play(float fromPosition = 0) { }
+     public void Stop() { }
+ }

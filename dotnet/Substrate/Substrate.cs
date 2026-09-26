@@ -104,7 +104,25 @@ static class HeadlessGuards
         var harmony = new HarmonyLib.Harmony("combat-parity.headless-guards");
         MethodInfo afterDeath = typeof(MegaCrit.Sts2.Core.Models.Monsters.SoulNexus).GetMethod("AfterDeath", BindingFlags.NonPublic | BindingFlags.Instance)!;
         harmony.Patch(afterDeath, prefix: new HarmonyLib.HarmonyMethod(typeof(HeadlessGuards).GetMethod(nameof(SoulNexusAfterDeath), BindingFlags.NonPublic | BindingFlags.Static)));
+        var audio = typeof(MegaCrit.Sts2.Core.Audio.Debug.NDebugAudioManager);
+        harmony.Patch(audio.GetProperty("Instance")!.GetGetMethod(), postfix: Guard(nameof(SilentDebugAudio)));
+        harmony.Patch(audio.GetMethod("Play")!, prefix: Guard(nameof(SkipPlay)));
+        harmony.Patch(audio.GetMethod("Stop")!, prefix: Guard(nameof(Skip)));
+        harmony.Patch(audio.GetMethod("StopAll")!, prefix: Guard(nameof(Skip)));
     }
+
+    static HarmonyLib.HarmonyMethod Guard(string name) =>
+        new(typeof(HeadlessGuards).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static));
+
+    // NDebugAudioManager.Instance is NGame.Instance?.DebugAudio, null headless. Event and rest-site code
+    // (JungleMazeAdventure, DenseVegetation, DollRoom, DigRestSiteOption) calls .Play/.Stop on it without `?.`, so the
+    // option's task dies before its gameplay lines run. Headless it is a silent stand-in: sound only, no state.
+    static MegaCrit.Sts2.Core.Audio.Debug.NDebugAudioManager? _silentAudio;
+    static void SilentDebugAudio(ref MegaCrit.Sts2.Core.Audio.Debug.NDebugAudioManager? __result) =>
+        __result ??= _silentAudio ??= (MegaCrit.Sts2.Core.Audio.Debug.NDebugAudioManager)
+            System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(MegaCrit.Sts2.Core.Audio.Debug.NDebugAudioManager));
+    static bool SkipPlay(ref int __result) { __result = 0; return false; }
+    static bool Skip() => false;
 
     // SoulNexus.AfterDeath: `Creature.Died -= AfterDeath;` then NCombatRoom.Instance.GetCreatureNode(...) with no `?.`.
     static bool SoulNexusAfterDeath(MegaCrit.Sts2.Core.Models.Monsters.SoulNexus __instance, MethodBase __originalMethod)
