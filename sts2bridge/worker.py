@@ -1,0 +1,138 @@
+"""Python side of the combat worker: start it once, load combats, step them one chosen input at a time.
+
+    with CombatWorker() as w:
+        s = w.load(MCR)                        # first decision boundary of the recorded fight
+        # or: s = w.start(spec_from_run(run, "ENCOUNTER.X", seed="ANY"))   any deck against any fight
+        while s["boundary"] != "terminal":
+            s = w.step(pick(s["legal"]))       # any entry of s["legal"], or a choose with picks
+
+Every reply carries ``boundary`` (awaiting_input, awaiting_choice or terminal), ``obs``, ``legal``, ``choice``
+(options when a choice is pending), ``state_hash`` (the game's NetFullCombatState hash at the boundary),
+``checkpoints`` (the game's own checksums taken since the previous reply), ``enqueued_by_game`` and
+``game_errors`` (error-level lines the game logged since the previous reply).
+
+Also here: ``recorded_action``, which turns a tape's net actions into the same caller vocabulary. It is what
+the parity test feeds through ``step``.
+"""
+
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PROJECT = HERE / "CombatWorker" / "CombatWorker.csproj"
+BINARY = HERE / "CombatWorker" / "bin" / "Debug" / "net9.0" / "CombatWorker.dll"
+
+# Tape events the game produces by itself on the singleplayer net service; a caller never sends them.
+GAME_DRIVEN = {"ready_to_begin_enemy_turn", "resume"}
+
+
+class WorkerError(RuntimeError):
+    pass
+
+
+class CombatWorker:
+    def __init__(self, workdir=None):
+        # GodotStubs resolve user:// against the working directory, so give the worker a scratch one.
+        self.workdir = Path(workdir or tempfile.mkdtemp(prefix="combat-worker-"))
+        self.workdir.mkdir(parents=True, exist_ok=True)
+        self.log_path = self.workdir / "worker.stderr"
+        self._log = open(self.log_path, "w")
+        self._proc = subprocess.Popen(["dotnet", str(BINARY)], cwd=self.workdir, text=True, bufsize=1,
+                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._log)
+        self.boot_ms = self._read()["boot_ms"]
+
+    def _read(self):
+        line = self._proc.stdout.readline()
+        if not line:
+            raise WorkerError(f"worker exited (rc={self._proc.poll()}); see {self.log_path}")
+        reply = json.loads(line)
+        if not reply.get("ok"):
+            raise WorkerError(reply.get("error"))
+        return reply
+
+    def request(self, cmd, **fields):
+        self._proc.stdin.write(json.dumps({"cmd": cmd, **fields}) + "\n")
+        return self._read()
+
+    def load(self, mcr):
+        return self.request("load", mcr=str(mcr))
+
+    def start(self, spec):
+        """Enter any fight from a spec: character, ascension, seed, encounter and a partial save player (see
+        ``spec_from_run`` and CombatWorker/CombatSpec.cs). Returns the first decision boundary."""
+        return self.request("start", spec=spec)
+
+    def catalog(self):
+        return self.request("catalog")
+
+    def step(self, action):
+        return self.request("step", action=action)
+
+    def observe(self):
+        return self.request("observe")
+
+    def tape(self, mcr):
+        return self.request("tape", mcr=str(mcr))
+
+    def close(self):
+        if self._proc.poll() is None:
+            self._proc.stdin.write(json.dumps({"cmd": "quit"}) + "\n")
+            self._proc.stdin.close()
+            self._proc.wait(timeout=30)
+        self._log.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
+def recorded_action(event, state):
+    """Translate one recorded tape event into a caller action at ``state``, the boundary it was played from.
+
+    Cards and targets are recorded by combat id; a caller names them by hand index and enemy slot, so the
+    translation goes through the observation exactly as a policy's choice would.
+    """
+    obs = state["obs"]
+    slot_of = {e["combat_id"]: e["slot"] for e in obs["enemies"]}
+    kind = event["kind"]
+    if kind == "play":
+        hand = [c["combat_card"] for c in obs["hand"]].index(event["combat_card"])
+        target = None if event["target_combat_id"] is None else slot_of[event["target_combat_id"]]
+        return {"type": "play", "hand": hand, "target": target}
+    if kind == "end_turn":
+        if obs["turn"] != event["turn"]:
+            raise ValueError(f"tape ends turn {event['turn']} but the worker is on turn {obs['turn']}")
+        return {"type": "end_turn"}
+    if kind == "potion":
+        target = None if event["target_combat_id"] is None else slot_of[event["target_combat_id"]]
+        return {"type": "potion", "slot": event["slot"], "target": target}
+    if kind == "choice":
+        options = [o["combat_card"] for o in state["choice"]["options"]]
+        return {"type": "choose", "picks": [options.index(c) for c in event["combat_cards"]]}
+    raise ValueError(f"no caller action for tape event {event}")
+
+
+def spec_from_run(run, encounter, seed, player=0, **player_fields):
+    """A spec for ``encounter`` with the deck, relics and potions a .run history file ends on.
+
+    Works on the game's local ``saves/history/*.run`` and on Spire Codex export records alike: both store each
+    player's deck, relics and potions as the game's save JSON, which is what a spec's ``player`` is. HP defaults
+    to what the player entered the run's last room with (the ``current_hp`` and ``max_hp`` recorded after the
+    room before it). Any other SerializablePlayer field can be given as a keyword, e.g. ``current_hp=40``.
+
+    The deck is the deck at the end of the run. Nothing in a .run says what it was at an earlier floor: cards
+    carry the floor they were added on, but removals, transforms and upgrades are not dated.
+    """
+    p = run["players"][player]
+    history = [point for act in run["map_point_history"] for point in act]
+    entering = next(s for s in history[-2]["player_stats"] if s["player_id"] == p["id"]) if len(history) > 1 else {}
+    fields = {"deck": p["deck"], "relics": p["relics"], "potions": p["potions"],
+              "max_potion_slot_count": p["max_potion_slot_count"]}
+    fields.update({k: entering[k] for k in ("current_hp", "max_hp") if k in entering})
+    fields.update(player_fields)
+    return {"character": p["character"], "ascension": run["ascension"], "seed": seed, "encounter": encounter,
+            "player": fields}

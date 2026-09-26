@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A persistent combat worker: load a combat from an .mcr's initial state, then step it one caller-chosen input at
+       a time over JSON lines on stdin/stdout. Runtime, references and the shared harness fixes come from ../Substrate. -->
+  <Import Project="../Substrate/Substrate.props" />
+</Project>

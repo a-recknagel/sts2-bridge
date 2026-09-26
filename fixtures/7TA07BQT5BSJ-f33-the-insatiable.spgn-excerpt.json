@@ -1,0 +1,619 @@
+{
+ "source": {
+  "file": "7TA07BQT5BSJ_20260926T004913Z_defeat.spgn",
+  "sha256": "e990bd687fb0ce4aa803f4c3bc29e3a832df016bef03a0f46654b603f8d26042",
+  "bytes": 3742940,
+  "format": [
+   0,
+   2
+  ]
+ },
+ "header": {
+  "seed": "7TA07BQT5BSJ",
+  "game_version": "v0.111.0",
+  "mods": [
+   [
+    "spirebird_stats",
+    "1.1.0"
+   ],
+   [
+    "BaseLib",
+    "v3.4.7"
+   ]
+  ],
+  "enum_version": 0,
+  "run_params": {
+   "1": [
+    "CHARACTER.DEFECT"
+   ],
+   "2": 10,
+   "3": 1,
+   "4": [],
+   "5": false,
+   "6": 1
+  },
+  "recorder": [
+   "spirebird-recorder",
+   "0.7.0"
+  ],
+  "claims": {
+   "result": 1,
+   "floor": 33,
+   "score": 1686,
+   "act": 1
+  },
+  "integrity": {
+   "sessions": 1,
+   "rollbacks": 0,
+   "discarded_decisions": 0,
+   "multiplayer": false,
+   "faults": 0,
+   "incomplete": false,
+   "unaudited_version": true
+  },
+  "model_id_hash": 1568834832,
+  "git_commit": "41cef1ea",
+  "anchor_model": 0,
+  "vocab": "net:v0.111.0"
+ },
+ "combat": {
+  "record_kinds": {
+   "boundary": 15,
+   "checksum": 49,
+   "action": 32,
+   "choice": 1
+  },
+  "boundaries": [
+   {
+    "anchor": 612,
+    "type": "combat_start",
+    "floor": 33,
+    "act_index": 1,
+    "room": "CombatRoom",
+    "data": "ENCOUNTER.THE_INSATIABLE_BOSS",
+    "run_rng_counters": {
+     "up_front": 414,
+     "shuffle": 448,
+     "unknown_map_point": 5,
+     "combat_card_generation": 77,
+     "combat_potion_generation": 0,
+     "combat_card_selection": 0,
+     "combat_energy_costs": 0,
+     "combat_targets": 78,
+     "monster_ai": 14,
+     "niche": 30,
+     "combat_orbs": 0,
+     "treasure_room_relics": 2
+    },
+    "state": {
+     "hp": 37,
+     "max_hp": 77,
+     "gold": 64,
+     "deck_crc": 648339272,
+     "potions": [],
+     "relic_count": 11
+    }
+   },
+   {
+    "anchor": 613,
+    "type": "room_enter",
+    "floor": 33,
+    "act_index": 1,
+    "room": "CombatRoom",
+    "run_rng_counters": {
+     "up_front": 414,
+     "shuffle": 448,
+     "unknown_map_point": 5,
+     "combat_card_generation": 77,
+     "combat_potion_generation": 0,
+     "combat_card_selection": 0,
+     "combat_energy_costs": 0,
+     "combat_targets": 78,
+     "monster_ai": 14,
+     "niche": 30,
+     "combat_orbs": 0,
+     "treasure_room_relics": 2
+    },
+    "state": {
+     "hp": 37,
+     "max_hp": 77,
+     "gold": 64,
+     "deck_crc": 648339272,
+     "potions": [],
+     "relic_count": 11
+    }
+   },
+   {
+    "anchor": 659,
+    "type": "run_end",
+    "floor": 33,
+    "act_index": 1,
+    "room": "CombatRoom",
+    "run_rng_counters": {
+     "up_front": 414,
+     "shuffle": 481,
+     "unknown_map_point": 5,
+     "combat_card_generation": 77,
+     "combat_potion_generation": 0,
+     "combat_card_selection": 0,
+     "combat_energy_costs": 0,
+     "combat_targets": 89,
+     "monster_ai": 14,
+     "niche": 30,
+     "combat_orbs": 0,
+     "treasure_room_relics": 2
+    },
+    "state": {
+     "hp": 0,
+     "max_hp": 77,
+     "gold": 64,
+     "deck_crc": 648339272,
+     "potions": [],
+     "relic_count": 11,
+     "relics": [
+      "RELIC.CRACKED_CORE",
+      "RELIC.KALEIDOSCOPE",
+      "RELIC.PERMAFROST",
+      "RELIC.POTION_BELT",
+      "RELIC.BELLOWS",
+      "RELIC.FESTIVE_POPPER",
+      "RELIC.ARCHAIC_TOOTH",
+      "RELIC.PENDULUM",
+      "RELIC.ANCHOR",
+      "RELIC.GORGET",
+      "RELIC.PEAR"
+     ]
+    }
+   }
+  ],
+  "turn_starts": 12,
+  "inputs": [
+   {
+    "anchor": 615,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 616,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 617,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 618,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 619,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 620,
+    "kind": "action",
+    "net_type": "NetEndPlayerTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 621,
+    "kind": "action",
+    "net_type": "NetReadyToBeginEnemyTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 624,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 625,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 626,
+    "kind": "action",
+    "net_type": "NetEndPlayerTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 627,
+    "kind": "action",
+    "net_type": "NetReadyToBeginEnemyTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 630,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 631,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 632,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 633,
+    "kind": "action",
+    "net_type": "NetEndPlayerTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 634,
+    "kind": "action",
+    "net_type": "NetReadyToBeginEnemyTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 637,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 638,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 639,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 640,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 641,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 642,
+    "kind": "action",
+    "net_type": "NetEndPlayerTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 643,
+    "kind": "action",
+    "net_type": "NetReadyToBeginEnemyTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 646,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 647,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 648,
+    "kind": "choice",
+    "net_type": null,
+    "choice_id": 29
+   },
+   {
+    "anchor": 649,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 650,
+    "kind": "action",
+    "net_type": "NetEndPlayerTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 651,
+    "kind": "action",
+    "net_type": "NetReadyToBeginEnemyTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 654,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 655,
+    "kind": "action",
+    "net_type": "NetPlayCardAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 656,
+    "kind": "action",
+    "net_type": "NetEndPlayerTurnAction",
+    "choice_id": null
+   },
+   {
+    "anchor": 657,
+    "kind": "action",
+    "net_type": "NetReadyToBeginEnemyTurnAction",
+    "choice_id": null
+   }
+  ],
+  "checksums": [
+   {
+    "id": 391,
+    "value": 1241110536,
+    "context": "After player turn start"
+   },
+   {
+    "id": 392,
+    "value": 1099628248,
+    "context": "finished action execution PlayCardAction card: CARD.MODDED (37885600) index: 0 targetid: "
+   },
+   {
+    "id": 393,
+    "value": 267499365,
+    "context": "finished action execution PlayCardAction card: CARD.BEAM_CELL (32839831) index: 5 targetid: 1"
+   },
+   {
+    "id": 394,
+    "value": 2987432788,
+    "context": "finished action execution PlayCardAction card: CARD.COOLHEADED (5426084) index: 1 targetid: "
+   },
+   {
+    "id": 395,
+    "value": 3515293356,
+    "context": "finished action execution PlayCardAction card: CARD.CAPACITOR (27123031) index: 6 targetid: "
+   },
+   {
+    "id": 396,
+    "value": 3137165707,
+    "context": "finished action execution PlayCardAction card: CARD.STRIKE_DEFECT (48834756) index: 2 targetid: 1"
+   },
+   {
+    "id": 397,
+    "value": 2663860281,
+    "context": "After player turn phase one end"
+   },
+   {
+    "id": 398,
+    "value": 34779813,
+    "context": "after player turn phase two end"
+   },
+   {
+    "id": 399,
+    "value": 2603192092,
+    "context": "After enemy turn start"
+   },
+   {
+    "id": 400,
+    "value": 791330202,
+    "context": "After enemy turn end"
+   },
+   {
+    "id": 401,
+    "value": 3250391383,
+    "context": "After player turn start"
+   },
+   {
+    "id": 402,
+    "value": 3740651968,
+    "context": "finished action execution PlayCardAction card: CARD.NULL (45020354) index: 12 targetid: 1"
+   },
+   {
+    "id": 403,
+    "value": 3234984574,
+    "context": "finished action execution PlayCardAction card: CARD.BALL_LIGHTNING (2530005) index: 13 targetid: 1"
+   },
+   {
+    "id": 404,
+    "value": 972764088,
+    "context": "After player turn phase one end"
+   },
+   {
+    "id": 405,
+    "value": 2264296528,
+    "context": "after player turn phase two end"
+   },
+   {
+    "id": 406,
+    "value": 601150764,
+    "context": "After enemy turn start"
+   },
+   {
+    "id": 407,
+    "value": 440635749,
+    "context": "After enemy turn end"
+   },
+   {
+    "id": 408,
+    "value": 2232894730,
+    "context": "After player turn start"
+   },
+   {
+    "id": 409,
+    "value": 3072593543,
+    "context": "finished action execution PlayCardAction card: CARD.DEFEND_DEFECT (22770049) index: 14 targetid: "
+   },
+   {
+    "id": 410,
+    "value": 1186662440,
+    "context": "finished action execution PlayCardAction card: CARD.FRANTIC_ESCAPE (21946696) index: 29 targetid: "
+   },
+   {
+    "id": 411,
+    "value": 2590992205,
+    "context": "finished action execution PlayCardAction card: CARD.FRANTIC_ESCAPE (32851931) index: 31 targetid: "
+   },
+   {
+    "id": 412,
+    "value": 851461263,
+    "context": "After player turn phase one end"
+   },
+   {
+    "id": 413,
+    "value": 2730065580,
+    "context": "after player turn phase two end"
+   },
+   {
+    "id": 414,
+    "value": 2468044082,
+    "context": "After enemy turn start"
+   },
+   {
+    "id": 415,
+    "value": 120381807,
+    "context": "After enemy turn end"
+   },
+   {
+    "id": 416,
+    "value": 281991201,
+    "context": "After player turn start"
+   },
+   {
+    "id": 417,
+    "value": 2226736488,
+    "context": "finished action execution PlayCardAction card: CARD.ITERATION (23476895) index: 17 targetid: "
+   },
+   {
+    "id": 418,
+    "value": 2014633568,
+    "context": "finished action execution PlayCardAction card: CARD.FASTEN (1896387) index: 20 targetid: "
+   },
+   {
+    "id": 419,
+    "value": 1484592159,
+    "context": "finished action execution PlayCardAction card: CARD.STRIKE_DEFECT (22580331) index: 19 targetid: 1"
+   },
+   {
+    "id": 420,
+    "value": 2556507496,
+    "context": "finished action execution PlayCardAction card: CARD.TURBO (32434705) index: 16 targetid: "
+   },
+   {
+    "id": 421,
+    "value": 2144569255,
+    "context": "finished action execution PlayCardAction card: CARD.UPROAR (17067483) index: 21 targetid: 1"
+   },
+   {
+    "id": 422,
+    "value": 1431854945,
+    "context": "After player turn phase one end"
+   },
+   {
+    "id": 423,
+    "value": 3748467101,
+    "context": "after player turn phase two end"
+   },
+   {
+    "id": 424,
+    "value": 3209391481,
+    "context": "After enemy turn start"
+   },
+   {
+    "id": 425,
+    "value": 2399930376,
+    "context": "After enemy turn end"
+   },
+   {
+    "id": 426,
+    "value": 189686438,
+    "context": "After player turn start"
+   },
+   {
+    "id": 427,
+    "value": 387469615,
+    "context": "finished action execution PlayCardAction card: CARD.SYNCHRONIZE (27055382) index: 24 targetid: "
+   },
+   {
+    "id": 428,
+    "value": 3420279644,
+    "context": "finished action execution PlayCardAction card: CARD.HOLOGRAM (7418187) index: 28 targetid: "
+   },
+   {
+    "id": 429,
+    "value": 3566067126,
+    "context": "finished action execution PlayCardAction card: CARD.COOLHEADED (5426084) index: 1 targetid: "
+   },
+   {
+    "id": 430,
+    "value": 3939864605,
+    "context": "After player turn phase one end"
+   },
+   {
+    "id": 431,
+    "value": 866261245,
+    "context": "after player turn phase two end"
+   },
+   {
+    "id": 432,
+    "value": 3094902368,
+    "context": "After enemy turn start"
+   },
+   {
+    "id": 433,
+    "value": 244926536,
+    "context": "After enemy turn end"
+   },
+   {
+    "id": 434,
+    "value": 309763928,
+    "context": "After player turn start"
+   },
+   {
+    "id": 435,
+    "value": 3943864992,
+    "context": "finished action execution PlayCardAction card: CARD.BLOODLETTING (49481877) index: 8 targetid: "
+   },
+   {
+    "id": 436,
+    "value": 2063610214,
+    "context": "finished action execution PlayCardAction card: CARD.METEOR_STRIKE (3603856) index: 15 targetid: 1"
+   },
+   {
+    "id": 437,
+    "value": 3173411849,
+    "context": "After player turn phase one end"
+   },
+   {
+    "id": 438,
+    "value": 729167857,
+    "context": "after player turn phase two end"
+   },
+   {
+    "id": 439,
+    "value": 3489168075,
+    "context": "After enemy turn start"
+   }
+  ],
+  "state_dumps": 49
+ }
+}
