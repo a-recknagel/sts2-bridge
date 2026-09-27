@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Combat.History.Entries;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Actions;
@@ -382,15 +383,17 @@ sealed class CombatSession
                 energy = pcs?.Energy, max_energy = pcs?.MaxEnergy, stars = pcs?.Stars,
                 powers = Powers(body),
                 orbs = pcs?.OrbQueue.Orbs.Select(o => new { id = o.Id.ToString(), passive = (int)o.PassiveVal, evoke = (int)o.EvokeVal }).ToList(),
+                orb_capacity = pcs?.OrbQueue.Capacity,
                 potions = _me.PotionSlots.Select(p => p?.Id.ToString()).ToList(),
                 // What the relic bar shows: the counter when the relic displays one, and whether it is spent.
                 relics = _me.Relics.Select(r => new { id = r.Id.ToString(), counter = r.ShowCounter ? r.DisplayAmount : (int?)null, used_up = r.IsUsedUp }).ToList(),
             },
             hand = pcs?.Hand.Cards.Select(Card).ToList(),
-            // Draw order is hidden from a player; expose it as a multiset.
-            draw = pcs?.DrawPile.Cards.Select(c => c.Id.ToString()).OrderBy(s => s, StringComparer.Ordinal).ToList(),
-            discard = pcs?.DiscardPile.Cards.Select(c => c.Id.ToString()).ToList(),
-            exhaust = pcs?.ExhaustPile.Cards.Select(c => c.Id.ToString()).ToList(),
+            // Draw order is hidden from a player; expose it as a multiset, sorted so the order carries nothing.
+            draw = Multiset(pcs?.DrawPile.Cards),
+            discard = Multiset(pcs?.DiscardPile.Cards),
+            exhaust = Multiset(pcs?.ExhaustPile.Cards),
+            this_turn = ThisTurn(cs, body),
             enemies = cs?.Enemies.Select((e, slot) => new
             {
                 slot, combat_id = e.CombatId, id = e.Monster?.Id.ToString(),
@@ -411,8 +414,28 @@ sealed class CombatSession
         type = c.Type.ToString(),
         target = c.TargetType.ToString(),
         playable = c.CanPlay(),
+        enchantment = c.Enchantment is EnchantmentModel e ? new { id = e.Id.ToString(), amount = e.Amount } : null,
         vars = Vars(c),
     };
+
+    static List<object>? Multiset(IEnumerable<CardModel>? cards) => cards?
+        .OrderBy(c => c.Id.ToString(), StringComparer.Ordinal).ThenBy(c => c.CurrentUpgradeLevel)
+        .ThenBy(c => c.Enchantment?.Id.ToString(), StringComparer.Ordinal).ThenBy(c => c.EnergyCost.GetAmountToSpend())
+        .Select(Card).ToList();
+
+    // What a player with perfect memory knows of this turn: the cards it has played and drawn so far. The game answers
+    // its own once-per-turn questions from this history (Iteration counts this turn's CardDrawnEntry), so it stands in
+    // for a flag per effect. A card played several times in one series (Burst, Echo Form) counts once.
+    static object? ThisTurn(CombatState? cs, Creature body)
+    {
+        if (cs == null) return null;
+        var turn = CombatManager.Instance.History.Entries.Where(e => e.HappenedThisTurn(cs) && e.Actor == body).ToList();
+        return new
+        {
+            played = Multiset(turn.OfType<CardPlayFinishedEntry>().Where(e => e.CardPlay.IsFirstInSeries).Select(e => e.CardPlay.Card)),
+            drawn = Multiset(turn.OfType<CardDrawnEntry>().Select(e => e.Card)),
+        };
+    }
 
     // The numbers the card's text shows. In hand they are the game's untargeted preview (strength, weak, relics...),
     // computed as NCard computes them for display; PreviewValue is display-only and never feeds game state.

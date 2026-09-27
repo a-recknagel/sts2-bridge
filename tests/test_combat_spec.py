@@ -89,7 +89,7 @@ class CombatSpecTests(unittest.TestCase):
         for key in ("hp", "max_hp", "block", "energy", "max_energy", "powers", "orbs", "potions", "relics"):
             self.assertEqual(b["player"][key], a["player"][key], key)
         self.assertEqual(b["enemies"], a["enemies"])
-        deck = lambda o: Counter([c["id"] for c in o["hand"]] + o["draw"])
+        deck = lambda o: Counter(c["id"] for c in o["hand"] + o["draw"])
         self.assertEqual(deck(b), deck(a))
         self.assertEqual(sum(deck(b).values()), len(run_fixture()["players"][0]["deck"]))
         # The shuffle is the run's, so the hands differ, and so does the state.

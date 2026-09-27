@@ -31,6 +31,7 @@ start in everything the shuffle does not decide. See
 research/combat_parity/setup.sh                                  # pinned sts2-cli into .work/, then build
 python3 -m unittest research.combat_parity.test_recorded_combat -v
 python3 -m unittest research.combat_parity.test_step_worker -v
+python3 -m unittest research.combat_parity.test_hand_win -v
 python3 -m unittest research.combat_parity.test_combat_spec -v
 python3 -m unittest research.combat_parity.test_run_worker -v
 ```
@@ -107,11 +108,13 @@ with CombatWorker() as w:
   A new turn number is never a boundary by itself. One `end_turn` runs the
   whole enemy turn and the next turn's start.
 - **Reply.**
-  - `obs`: the encounter, HP, block, energy, powers, orbs, potions, the relic
-    bar (displayed counters, used up), hand with costs, playability and the
-    numbers the card text shows (`vars`: the game's display preview, which
-    never feeds game state), piles (draw as a multiset), and enemies with
-    their intents.
+  - `obs`: the encounter, HP, block, energy, powers, orbs with the queue's
+    capacity, potions, the relic bar (displayed counters, used up), hand with
+    costs, playability, enchantment and the numbers the card text shows
+    (`vars`: the game's display preview, which never feeds game state), the
+    draw, discard and exhaust piles as sorted multisets of the same card
+    records, `this_turn` (cards played and drawn so far this turn, from the
+    game's combat history), and enemies with their intents.
   - `legal`: every input valid at this boundary, in the same shape the
     worker accepts.
   - `choice`: the options, when a choice is pending.
@@ -343,6 +346,7 @@ these changes.
 | [`fixtures/7TA07BQT5BSJ-f33-the-insatiable.mcr`](fixtures/7TA07BQT5BSJ-f33-the-insatiable.mcr) | The game's own replay of the fight, byte-for-byte |
 | [`fixtures/7TA07BQT5BSJ-f33-the-insatiable.spgn-excerpt.json`](fixtures/7TA07BQT5BSJ-f33-the-insatiable.spgn-excerpt.json) | The same fight as the Spirebird recorder saw it: header, boundaries with RNG counters and state anchors, inputs, and 49 checksums. State dumps are omitted |
 | [`ReplayCheck/`](ReplayCheck/) | C# harness. Reads the tape with the game's `PacketReader`, replays it as `NMultiplayerTest.RunReplay` does, and compares every checksum by id |
+| [`fixtures/7TA07BQT5BSJ-f33-the-insatiable.hand-win.json`](fixtures/7TA07BQT5BSJ-f33-the-insatiable.hand-win.json) | A win of the same fight, played once from what a player can see: the 34 worker inputs, and each turn as the cards played, both HPs and the intent. `test_hand_win.py` replays the inputs and requires the same line and the win at 3 HP |
 | [`fixtures/7TA07BQT5BSJ.run`](fixtures/7TA07BQT5BSJ.run) | The same run's history file from `saves/history`, byte-for-byte: the spec source the rebuilt-fight test reads |
 | [`CombatWorker/`](CombatWorker/), [`combat_worker.py`](combat_worker.py) | The combat and continuous-run worker with its Python client; `CombatSpec.cs` starts a fight from a spec, `RunSession.cs` keeps one native run, and `BundleSelector.cs` exposes bundle choices |
 | [`Substrate/`](Substrate/) | Build properties and the code both C# drivers share: boot, checkpoint restoring, hashing, the deferred-call flush and the headless guards |
