@@ -305,7 +305,8 @@ The Insatiable fight never touched these gaps. Any fight might.
   node it would touch is null. Kaiser Crab's `SetVisible` stopped that fight
   starting. Phantasmal Gardener's `Mathf.Log` killed the turn loop. A
   static pass over `sts2.dll`'s member references, walked back to their
-  callers, found the rest on gameplay paths.
+  callers ([`StubAudit`](StubAudit/Program.cs)), found the rest on gameplay
+  paths.
   - The worst was `Callable.From(Func<T>)`, which `GameAction.Cancel` uses,
     so no action could be cancelled.
   - [`sts2-cli-stubs.patch`](sts2-cli-stubs.patch) adds them, and
