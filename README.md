@@ -3,7 +3,8 @@
 Run Slay the Spire 2 headless and step through combats and whole runs from Python.
 
 It can replay the game's `.mcr` combat recordings, build combat specs from `.run` history files,
-inspect Spirebird `.spgn` tapes, and start new whole runs under Python control.
+and parse Spirebird `.spgn` tapes into JSON for replay validation and analysis. It can also start
+new whole runs under Python control.
 
 This started as plumbing for my own experiments with game agents. It turned out to be useful on its own.
 
