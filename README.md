@@ -11,16 +11,22 @@ For a reference, I used a recorded Insatiable boss fight. Replay and step-by-ste
 of the game's state checksums. The tests keep checking.
 
 ```python
-from sts2bridge import CombatWorker, spec_from_run
+from examples.basic_policy import policy
+from sts2bridge import CombatWorker
 from sts2bridge.fixtures import MCR
 
 with CombatWorker() as w:
-    s = w.load(MCR)                               # or w.start(spec_from_run(run, "ENCOUNTER.X", seed="ANY"))
+    s = w.load(MCR)
     while s["boundary"] != "terminal":
-        s = w.step(policy(s))                     # any entry of s["legal"]
+        s = w.step(policy(s))
 ```
 
-Here, `policy(s)` is your action selector: it returns an entry from `s["legal"]`.
+The [example policy](examples/basic_policy.py) scores damage, needed block, and early powers.
+It's a small baseline to replace with your own. After setup, run it from the repository root:
+
+```sh
+python3 -m examples.basic_policy
+```
 
 On an M-series Mac: boot ≈ 0.5 s, combat start ≈ 8 ms, step ≈ 5 ms (21 ms for an end turn).
 
