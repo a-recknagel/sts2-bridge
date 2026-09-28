@@ -1,0 +1,18 @@
+[project]
+name = "sts2bridge"
+version = "0.1.0"
+description = "Slay the Spire 2, headless, at game parity: step combats and whole runs from Python"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = []
+
+[project.optional-dependencies]
+spgn = ["cbor2"]         # sts2bridge.spgn: Spirebird tape reader
+nn = ["torch", "numpy"]  # agents/nn
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["sts2bridge"]

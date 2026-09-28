@@ -1,6 +1,6 @@
 """Play one continuous native run to its end: fights by rollout search on snapshot copies, the rest by priors.
 
-    python3 -m research.combat_parity.play_run --seed WIN1 [--character CHARACTER.IRONCLAD] [--sims 10]
+    python3 -m agents.run.play_run --seed WIN1 [--character CHARACTER.IRONCLAD] [--sims 10] [--priors priors.json]
 
 One main worker holds the run (``start_run`` / ``run_step``); it is never rebuilt. At every combat the main worker
 writes the game's own recording of the fight (``run_combat_snapshot``), whose initial state is the run as it entered
@@ -15,7 +15,7 @@ then a local search keeps the best line (the incumbent) and rolls out variations
 to a random cut and continuing with a randomised policy. Once a line wins, the search goes on until a patience budget
 passes without a better line, then the main run plays it. Fights the snapshot cannot re-enter (a fight started from inside an event) fall back to the rollout policy.
 
-Everything outside combat is a prior (``run_priors``): Spirebird A10 card Elo against the act's skip Elo for card
+Everything outside combat is a prior (``priors``): Spirebird A10 card Elo against the act's skip Elo for card
 rewards, shops and choices, and Codex A10 counts for relics, ancients and events.
 """
 
@@ -28,8 +28,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from research.combat_parity.combat_worker import CombatWorker, WorkerError
-from research.combat_parity.run_priors import Priors
+from sts2bridge import CombatWorker, WorkerError
+
+from .priors import Priors
 
 HERE = Path(__file__).resolve().parent
 BASICS = ("CARD.STRIKE_", "CARD.DEFEND_")
@@ -485,7 +486,7 @@ class Chooser:
 
 # ---- the run ------------------------------------------------------------------------------------------------------
 
-def play(seed, character="CHARACTER.IRONCLAD", ascension=10, sims=10, codex_priors=None, budget=None, out=None,
+def play(seed, character="CHARACTER.IRONCLAD", ascension=10, sims=10, priors=None, budget=None, out=None,
          verbose=True):
     """``sims=0`` plays every fight with the rollout policy alone: a fast sweep of the run adapters."""
     budget = budget or {"per_round": 40, "max_rollouts": 30_000,
@@ -504,7 +505,7 @@ def play(seed, character="CHARACTER.IRONCLAD", ascension=10, sims=10, codex_prio
             live.write(msg + "\n")
             live.flush()
 
-    priors = Priors(character, codex_priors)
+    priors = Priors(character, priors)
     chooser = Chooser(priors, log)
     pool = SimPool(sims) if sims else None
     main = CombatWorker()
@@ -615,9 +616,9 @@ if __name__ == "__main__":
     ap.add_argument("--character", default="CHARACTER.IRONCLAD")
     ap.add_argument("--ascension", type=int, default=10)
     ap.add_argument("--sims", type=int, default=10)
-    ap.add_argument("--codex-priors")
+    ap.add_argument("--priors", help="per-character priors JSON; see priors.py")
     ap.add_argument("--out")
     args = ap.parse_args()
-    r = play(args.seed, args.character, args.ascension, args.sims, args.codex_priors, out=args.out)
+    r = play(args.seed, args.character, args.ascension, args.sims, args.priors, out=args.out)
     print(json.dumps({k: v for k, v in r.items() if k not in ("deck", "last")}, indent=1))
     raise SystemExit(0 if r.get("victory") else 1)

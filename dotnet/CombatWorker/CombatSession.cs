@@ -153,7 +153,7 @@ sealed class CombatSession
         var session = new CombatSession(run);
         SetUpSingleplayer(run, save);
         RunManager rm = RunManager.Instance;
-        // TestMode.IsOn (set by sts2-cli) disables the game's checksum tracker; turn it back on.
+        // TestMode.IsOn (set by HeadlessInit) disables the game's checksum tracker; turn it back on.
         rm.ChecksumTracker.IsEnabled = true;
         rm.ChecksumTracker.ChecksumGenerated += (data, context, _) =>
             session._checkpoints.Add(new { id = data.id, hash = data.checksum, context = NormalizeContext(context) });

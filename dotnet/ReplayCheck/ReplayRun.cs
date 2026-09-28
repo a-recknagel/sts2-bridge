@@ -44,7 +44,7 @@ sealed class ReplayRun(string mcrPath, string outDir, bool inspectOnly, bool res
         RunState runState = RunState.FromSerializable(_replay.serializableRun);
         ulong netId = runState.Players[0].NetId;
         RunManager.Instance.SetUpReplay(runState, _replay, netId);
-        // TestMode.IsOn (set by sts2-cli) disables the game's checksum oracle; turn it back on.
+        // TestMode.IsOn (set by HeadlessInit) disables the game's checksum oracle; turn it back on.
         RunManager.Instance.ChecksumTracker.IsEnabled = true;
         RunManager.Instance.ChecksumTracker.ChecksumGenerated += OnChecksum;
         if (restorePostActionChecksum) RestorePostActionChecksum();

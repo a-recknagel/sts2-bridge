@@ -1,4 +1,4 @@
-// Shared by ReplayCheck and CombatWorker: boot sts2-cli's hosting substrate with the three harness fixes
+// Shared by ReplayCheck and CombatWorker: boot the headless substrate (GodotStubs + IL-patched sts2.dll + HeadlessInit) with the three harness fixes
 // (net-type registries, re-enabled checksum tracker, restored post-action checkpoints), the headless guards for game
 // code that assumes a UI, and the helpers both drivers use to hash states and wait on the game's own async loop.
 using System.Diagnostics;
@@ -31,12 +31,12 @@ static class Substrate
 {
     public const int StepTimeoutMs = 30_000;
 
-    // sts2-cli's own init: TestMode.IsOn=true, inline SynchronizationContext, Harmony patches
-    // (Task.Yield, Cmd.Wait, TalkCmd, localization, Neutralize), ModelDb, ModelIdSerializationCache.
-    // sts2-cli never runs the OneTimeInitialization net registries; recorded net actions need them.
+    // HeadlessInit: TestMode.IsOn=true, inline SynchronizationContext, Harmony patches (Cmd.Wait, TalkCmd, localization,
+    // Neutralize), ModelDb, ModelIdSerializationCache. It never ran the OneTimeInitialization net registries; recorded
+    // net actions need them.
     public static void Boot()
     {
-        typeof(Sts2Headless.RunSimulator).GetMethod("EnsureModelDbInitialized", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, null);
+        HeadlessInit.Run();
         MegaCrit.Sts2.Core.Multiplayer.Serialization.MessageTypes.Initialize();
         MegaCrit.Sts2.Core.GameActions.Multiplayer.ActionTypes.Initialize();
         HeadlessGuards.Apply();
@@ -72,7 +72,7 @@ static class Substrate
     public static string NormalizeContext(string? c) => System.Text.RegularExpressions.Regex.Replace(c ?? "", @"\(\d+\)", "(#)");
 
     // Each poll is a frame: first the deferred calls Godot would flush at idle time (GameAction.Cancel completes its
-    // task that way; see ../sts2-cli-stubs.patch), then the condition.
+    // task that way; see ../GodotStubs/Types.cs), then the condition.
     public static bool WaitFor(Func<bool> cond, int timeoutMs = StepTimeoutMs)
     {
         var sw = Stopwatch.StartNew();

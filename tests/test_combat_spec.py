@@ -1,11 +1,11 @@
 """Combats started from a spec: a character, deck, relics, potions and HP against any encounter.
 
-    python3 -m unittest research.combat_parity.test_combat_spec -v
+    python3 -m unittest tests.test_combat_spec -v
 
 The anchor is the recorded Insatiable fight. Its run's history file (fixtures/7TA07BQT5BSJ.run) turned into a
 spec must start the same fight the recording loads, in everything a shuffle does not decide. Past that: every
 encounter in the build starts and plays out, a spec and seed always give the same fight, and a spec naming
-something this build does not have is refused. Needs ``research/combat_parity/setup.sh``; without it the worker
+something this build does not have is refused. Needs ``./setup.sh``; without it the worker
 tests skip.
 """
 
@@ -16,10 +16,10 @@ import subprocess
 import unittest
 from collections import Counter
 
-from .combat_worker import PROJECT, CombatWorker, WorkerError, spec_from_run
-from .test_recorded_combat import CLI_LIB, HERE, MCR, save_dir_snapshot
+from sts2bridge.fixtures import MCR, RUN
+from sts2bridge.worker import LIB, PROJECT, CombatWorker, WorkerError, spec_from_run
 
-RUN = HERE / "fixtures" / "7TA07BQT5BSJ.run"
+from .test_recorded_combat import save_dir_snapshot
 INSATIABLE = "ENCOUNTER.THE_INSATIABLE_BOSS"
 
 # Logged by the game's ActionQueueSet when the last enemy dies inside the end-turn action itself (an end-of-turn
@@ -53,7 +53,7 @@ def unexpected(errors):
     return [e for e in errors if not any(b in e for b in BENIGN_GAME_ERRORS)]
 
 
-@unittest.skipUnless(CLI_LIB.exists() and shutil.which("dotnet"), "run research/combat_parity/setup.sh first")
+@unittest.skipUnless(LIB.exists() and shutil.which("dotnet"), "run ./setup.sh first")
 class CombatSpecTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

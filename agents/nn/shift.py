@@ -1,7 +1,7 @@
 """How a run's play changed from one checkpoint to the next, on the recorded fight.
 
-    research/combat_nn/.venv/bin/python -m research.combat_nn.shift runs/seeds/snapshots/*.pt
-    research/combat_nn/.venv/bin/python -m research.combat_nn.shift runs/seeds/best.pt runs/seeds/ckpt.pt
+    .venv/bin/python -m agents.nn.shift runs/seeds/snapshots/*.pt
+    .venv/bin/python -m agents.nn.shift runs/seeds/best.pt runs/seeds/ckpt.pt
 
 Two views per checkpoint, in the order given:
 
@@ -17,15 +17,12 @@ Two views per checkpoint, in the order given:
 import argparse
 import json
 import math
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from sts2bridge import CombatWorker
+from sts2bridge.fixtures import MCR, WIN
 
-from research.combat_nn.show import label, line, load, policy, short  # noqa: E402
-from research.combat_parity.combat_worker import CombatWorker  # noqa: E402
-from research.combat_parity.test_hand_win import WIN  # noqa: E402
-from research.combat_parity.test_recorded_combat import MCR  # noqa: E402
+from .show import label, line, load, policy, short
 
 
 def probe(worker, net, vocab, inputs):

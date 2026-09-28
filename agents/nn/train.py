@@ -1,7 +1,7 @@
 """PPO on one fight: the Insatiable, with the deck, relics and HP of run 7TA07BQT5BSJ.
 
-    research/combat_nn/.venv/bin/python -m research.combat_nn.train --name first
-    research/combat_nn/.venv/bin/python -m research.combat_nn.train --name smoke --train-on recorded   # memorise it
+    .venv/bin/python -m agents.nn.train --name first
+    .venv/bin/python -m agents.nn.train --name smoke --train-on recorded   # memorise it
 
 Training fights are started from the run's history file with a fresh random seed each, so the shuffle and every
 roll change and nothing can be learned about one recording. The recorded fight itself (the .mcr the user lost)
@@ -10,31 +10,28 @@ held-out seeds greedily, and reports win rates next to the training ones. `--tra
 recording instead, as a check that the pipeline can learn anything at all; a win there proves nothing else.
 
 The reward is terminal: 1 for a win, and a loss is worth less by one of two measures (see `outcome`). Runs write log.jsonl, ckpt.pt, best.pt
-and a snapshot per eval under research/combat_nn/runs/<name>/.
+and a snapshot per eval under agents/nn/runs/<name>/.
 """
 
 import argparse
 import json
 import queue
 import random
-import sys
 import time
 from pathlib import Path
 
 import torch
 import torch.multiprocessing as mp
 
+from sts2bridge import CombatWorker, spec_from_run
+from sts2bridge.fixtures import MCR
+from sts2bridge.fixtures import RUN as RUN_FILE
+
+from .encode import Vocab, collate, encode
+from .model import Net
+
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent.parent
-sys.path.insert(0, str(ROOT))
-
-from research.combat_nn.encode import Vocab, collate, encode  # noqa: E402
-from research.combat_nn.model import Net  # noqa: E402
-from research.combat_parity.combat_worker import CombatWorker, spec_from_run  # noqa: E402
-
-FIXTURES = ROOT / "research" / "combat_parity" / "fixtures"
-MCR = FIXTURES / "7TA07BQT5BSJ-f33-the-insatiable.mcr"
-RUN = json.loads((FIXTURES / "7TA07BQT5BSJ.run").read_text())
+RUN = json.loads(RUN_FILE.read_text())
 ENCOUNTER = "ENCOUNTER.THE_INSATIABLE_BOSS"
 MAX_TURNS = 30
 

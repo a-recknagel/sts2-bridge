@@ -1,12 +1,12 @@
 """The recorded fight won, one pass, from what a player can see: the line pinned as inputs and as cards.
 
-    python3 -m unittest research.combat_parity.test_hand_win -v
-    python3 -m research.combat_parity.test_hand_win --write   # regenerate the fixture's turns from its inputs
+    python3 -m unittest tests.test_hand_win -v
+    python3 -m tests.test_hand_win --write   # regenerate the fixture's turns from its inputs
 
 The fixture keeps the 34 worker inputs the win was played with, and beside them each turn as the cards played,
 the HP both sides started it on and the boss's intent. Inputs are hand positions, which mean nothing without the
 recorded seed; the turns are the line a person can read, and the test replays the inputs to check they still say
-the same thing and still win. Needs ``research/combat_parity/setup.sh``; without it the tests skip.
+the same thing and still win. Needs ``./setup.sh``; without it the tests skip.
 """
 
 import json
@@ -15,14 +15,10 @@ import subprocess
 import sys
 import unittest
 
-from .combat_worker import PROJECT, CombatWorker
-from .test_recorded_combat import CLI_LIB, FIXTURES, MCR, save_dir_snapshot
+from sts2bridge.fixtures import MCR, WIN
+from sts2bridge.worker import LIB, PROJECT, CombatWorker, card_name
 
-WIN = FIXTURES / "7TA07BQT5BSJ-f33-the-insatiable.hand-win.json"
-
-
-def card_name(card):
-    return card["id"] + "+" * card["upgrades"]
+from .test_recorded_combat import save_dir_snapshot
 
 
 def play_line(worker, inputs):
@@ -56,7 +52,7 @@ def play_line(worker, inputs):
     return turns, end, trace
 
 
-@unittest.skipUnless(CLI_LIB.exists() and shutil.which("dotnet"), "run research/combat_parity/setup.sh first")
+@unittest.skipUnless(LIB.exists() and shutil.which("dotnet"), "run ./setup.sh first")
 class HandWinTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

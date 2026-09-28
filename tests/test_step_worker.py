@@ -1,10 +1,10 @@
 """The recorded combat again, but played through the worker's ``step`` interface by an ordinary caller.
 
-    python3 -m unittest research.combat_parity.test_step_worker -v
+    python3 -m unittest tests.test_step_worker -v
 
 The caller sees only what a policy would: the observation, the legal inputs, and a pending choice. It translates
 each recorded input into that vocabulary, checks it is legal, and sends it. The game's own checkpoints must
-still match the recording 49/49. Needs ``research/combat_parity/setup.sh``; without it the tests skip.
+still match the recording 49/49. Needs ``./setup.sh``; without it the tests skip.
 """
 
 import re
@@ -14,8 +14,10 @@ import unittest
 from collections import Counter
 from statistics import mean
 
-from .combat_worker import GAME_DRIVEN, PROJECT, CombatWorker, WorkerError, recorded_action
-from .test_recorded_combat import CHECKPOINT_IDS, CLI_LIB, MCR, excerpt, save_dir_snapshot
+from sts2bridge.fixtures import MCR
+from sts2bridge.worker import GAME_DRIVEN, LIB, PROJECT, CombatWorker, WorkerError, recorded_action
+
+from .test_recorded_combat import CHECKPOINT_IDS, excerpt, save_dir_snapshot
 
 
 def play_recording(worker, tape):
@@ -32,7 +34,7 @@ def play_recording(worker, tape):
     return trace
 
 
-@unittest.skipUnless(CLI_LIB.exists() and shutil.which("dotnet"), "run research/combat_parity/setup.sh first")
+@unittest.skipUnless(LIB.exists() and shutil.which("dotnet"), "run ./setup.sh first")
 class StepWorkerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Replays a recorded latest.mcr on sts2-cli's runtime and compares every game-generated checksum against the
+  <!-- Replays a recorded latest.mcr on the headless substrate and compares every game-generated checksum against the
        recording. Runtime, references and the shared harness fixes come from ../Substrate. -->
   <Import Project="../Substrate/Substrate.props" />
 </Project>

@@ -72,7 +72,7 @@ sealed class RunSession
             ActModel.GetDefaultList().Select(a => a.ToMutable()).ToList(),
             Array.Empty<ModifierModel>(), GameMode.Standard, ascension, seed);
         rm.SetUpNewSingleplayer(run, shouldSave: false);
-        // The shipped game records every combat (off only because sts2-cli sets TestMode). Its initial state is
+        // The shipped game records every combat (off only because HeadlessInit sets TestMode). Its initial state is
         // taken inside EnterMapPointInternal just before the room is rolled, which is what CombatSnapshot writes.
         rm.CombatReplayWriter.IsEnabled = true;
         rm.Launch();

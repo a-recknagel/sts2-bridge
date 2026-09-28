@@ -19,13 +19,15 @@ the parity test feeds through ``step``.
 """
 
 import json
+import os
 import subprocess
 import tempfile
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-PROJECT = HERE / "CombatWorker" / "CombatWorker.csproj"
-BINARY = HERE / "CombatWorker" / "bin" / "Debug" / "net9.0" / "CombatWorker.dll"
+ROOT = Path(__file__).resolve().parent.parent
+LIB = ROOT / "lib" / "sts2.dll"  # present once ./setup.sh has copied and patched the game's DLLs
+PROJECT = ROOT / "dotnet" / "CombatWorker" / "CombatWorker.csproj"
+BINARY = Path(os.environ.get("STS2_BRIDGE_WORKER") or ROOT / "dotnet" / "CombatWorker" / "bin" / "Debug" / "net9.0" / "CombatWorker.dll")
 
 # Tape events the game produces by itself on the singleplayer net service; a caller never sends them.
 GAME_DRIVEN = {"ready_to_begin_enemy_turn", "resume"}
@@ -130,6 +132,11 @@ class CombatWorker:
 
     def __exit__(self, *exc):
         self.close()
+
+
+def card_name(card):
+    """A card record from ``obs`` as the game id with one + per upgrade, e.g. CARD.HOLOGRAM+."""
+    return card["id"] + "+" * card["upgrades"]
 
 
 def recorded_action(event, state):

@@ -1,9 +1,9 @@
 """One recorded combat, replayed headless, checked against the real game's own checkpoints.
 
-    python3 -m unittest research.combat_parity.test_recorded_combat -v
+    python3 -m unittest tests.test_recorded_combat -v
 
-The fixture tests always run. The replay tests need ``research/combat_parity/setup.sh``
-to have built the pinned sts2-cli substrate; without it they skip.
+The fixture tests always run. The replay tests need ``./setup.sh`` to have copied and
+patched the game's DLLs and built the drivers; without it they skip.
 """
 
 import hashlib
@@ -15,15 +15,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
-FIXTURES = HERE / "fixtures"
-MCR = FIXTURES / "7TA07BQT5BSJ-f33-the-insatiable.mcr"
-EXCERPT = FIXTURES / "7TA07BQT5BSJ-f33-the-insatiable.spgn-excerpt.json"
+from sts2bridge.fixtures import EXCERPT, MCR
+from sts2bridge.worker import LIB, ROOT
+
 MCR_SHA256 = "1b58f3299a7424382193bea2063bbb57020b28f10f81c06a29125044dd1c1188"
 SPGN_SHA256 = "e990bd687fb0ce4aa803f4c3bc29e3a832df016bef03a0f46654b603f8d26042"
-CLI_LIB = HERE / ".work" / "sts2-cli" / "lib" / "sts2.dll"
-PROJECT = HERE / "ReplayCheck" / "ReplayCheck.csproj"
-BINARY = HERE / "ReplayCheck" / "bin" / "Debug" / "net9.0" / "ReplayCheck.dll"
+PROJECT = ROOT / "dotnet" / "ReplayCheck" / "ReplayCheck.csproj"
+BINARY = ROOT / "dotnet" / "ReplayCheck" / "bin" / "Debug" / "net9.0" / "ReplayCheck.dll"
 REAL_SAVES = Path.home() / "Library" / "Application Support" / "SlayTheSpire2"
 CHECKPOINT_IDS = list(range(391, 440))
 
@@ -58,7 +56,7 @@ class FixtureTests(unittest.TestCase):
         self.assertEqual(ex["combat"]["state_dumps"], 49)
 
 
-@unittest.skipUnless(CLI_LIB.exists() and shutil.which("dotnet"), "run research/combat_parity/setup.sh first")
+@unittest.skipUnless(LIB.exists() and shutil.which("dotnet"), "run ./setup.sh first")
 class ReplayTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

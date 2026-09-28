@@ -3,7 +3,7 @@
 import json
 import unittest
 
-from research.combat_parity.combat_worker import BINARY, CombatWorker, WorkerError
+from sts2bridge.worker import BINARY, CombatWorker, WorkerError
 
 
 @unittest.skipUnless(BINARY.is_file(), "build the pinned combat substrate first")

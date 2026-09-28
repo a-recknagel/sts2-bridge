@@ -1,25 +1,25 @@
 <Project>
-  <!-- Common to every driver on sts2-cli's runtime (GodotStubs + its patched sts2.dll + its init). CliRoot is the
-       sts2-cli checkout that ../setup.sh pins; override with -p:CliRoot=... -->
+  <!-- Common to every driver on the headless substrate: the vendored GodotStubs, the IL-patched sts2.dll that
+       ../../setup.sh copies into lib/, and HeadlessInit. Override the DLL directory with -p:Sts2Lib=... -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- No RollForward: Harmony (sts2-cli's patches) throws on CoreCLR 10; stay on the 9.0 runtime. -->
-    <CliRoot Condition="'$(CliRoot)' == ''">$(MSBuildThisFileDirectory)../.work/sts2-cli</CliRoot>
+    <!-- No RollForward: Harmony throws on CoreCLR 10; stay on the 9.0 runtime. -->
+    <Sts2Lib Condition="'$(Sts2Lib)' == ''">$(MSBuildThisFileDirectory)../../lib</Sts2Lib>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)Substrate.cs" Link="Substrate.cs" />
-    <ProjectReference Include="$(CliRoot)/src/GodotStubs/GodotStubs.csproj" />
-    <ProjectReference Include="$(CliRoot)/src/Sts2Headless/Sts2Headless.csproj" />
-    <Reference Include="sts2"><HintPath>$(CliRoot)/lib/sts2.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="0Harmony"><HintPath>$(CliRoot)/lib/0Harmony.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="System.IO.Hashing"><HintPath>$(CliRoot)/lib/System.IO.Hashing.dll</HintPath><Private>false</Private></Reference>
+    <Compile Include="$(MSBuildThisFileDirectory)HeadlessInit.cs" Link="HeadlessInit.cs" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../GodotStubs/GodotStubs.csproj" />
+    <Reference Include="sts2"><HintPath>$(Sts2Lib)/sts2.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(Sts2Lib)/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System.IO.Hashing"><HintPath>$(Sts2Lib)/System.IO.Hashing.dll</HintPath><Private>false</Private></Reference>
     <!-- Where the game DLLs are resolved from at run time when STS2_LIB is unset. -->
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>Sts2Lib</_Parameter1>
-      <_Parameter2>$([System.IO.Path]::GetFullPath('$(CliRoot)/lib'))</_Parameter2>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(Sts2Lib)'))</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
 </Project>

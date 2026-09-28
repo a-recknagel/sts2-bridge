@@ -1,6 +1,6 @@
 """Many seeded runs in parallel processes, each with its own worker(s): the run adapters under a cheap policy.
 
-    python3 -m research.combat_parity.sweep_runs --seeds 40 [--procs 12] [--sims 0] [--prefix SWEEP]
+    python3 -m agents.run.sweep_runs --seeds 40 [--procs 12] [--sims 0] [--prefix SWEEP] [--priors priors.json]
 
 ``--sims 0`` (the default) plays fights with the rollout policy alone, so runs end early but cover many rooms,
 events and rewards quickly. Each run's result, with its trace path, goes to ``--out`` as one JSON line.
@@ -11,13 +11,13 @@ import collections
 import json
 from multiprocessing import Pool
 
-from research.combat_parity.play_run import play
+from .play_run import play
 
 
 def one(job):
     seed, args = job
     out = f"{args.logs}/{seed}.json" if args.logs else None
-    return play(seed, args.character, args.ascension, args.sims, args.codex_priors, out=out, verbose=False)
+    return play(seed, args.character, args.ascension, args.sims, args.priors, out=out, verbose=False)
 
 
 if __name__ == "__main__":
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     ap.add_argument("--sims", type=int, default=0)
     ap.add_argument("--character", default="CHARACTER.IRONCLAD")
     ap.add_argument("--ascension", type=int, default=10)
-    ap.add_argument("--codex-priors")
+    ap.add_argument("--priors")
     ap.add_argument("--out", default="sweep_runs.jsonl")
     ap.add_argument("--logs", help="directory for each run's full log as <seed>.json")
     args = ap.parse_args()

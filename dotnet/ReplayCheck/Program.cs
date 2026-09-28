@@ -1,5 +1,5 @@
 // ReplayCheck: read a recorded latest.mcr with the game's own PacketReader, then replay it on
-// sts2-cli's runtime (GodotStubs + its IL-patched sts2.dll + its init/Harmony patches), mirroring
+// the headless substrate (GodotStubs + the IL-patched sts2.dll + HeadlessInit's Harmony patches), mirroring
 // NMultiplayerTest.RunReplay step for step. Every checksum the game generates is compared by id
 // against the recording; the first mismatch dumps both NetFullCombatStates.
 //
@@ -7,8 +7,8 @@
 //   --inspect-only         read the tape and write mcr_inspect.json / mcr_initial_run.json, no replay
 //   --strict-steps         after every event, wait for the step boundary (resolved + next input, or terminal)
 //   --drop-event N         negative control: skip recorded event N
-//   --no-restore-checksum  leave sts2-cli's TestMode checksum gap in place (reproduces the 1/49 first attempt)
-// env: STS2_LIB overrides the sts2-cli lib/ directory baked in at build time.
+//   --no-restore-checksum  leave TestMode's checksum gap in place (reproduces the 1/49 first attempt)
+// env: STS2_LIB overrides the lib/ directory baked in at build time.
 // Run it from a scratch working directory: user:// paths resolve relative to cwd under GodotStubs.
 static class Program
 {

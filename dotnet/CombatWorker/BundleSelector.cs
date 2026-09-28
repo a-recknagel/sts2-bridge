@@ -7,8 +7,8 @@ using MegaCrit.Sts2.Core.GameActions;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
 
-// sts2-cli's substrate patch for FromChooseABundleScreen chooses bundle zero when no RunSimulator is installed.
-// Replace only that prefix. A run waits for its caller; other CombatWorker modes use the game's TestMode branch.
+// FromChooseABundleScreen during a run waits for the caller's pick. Other CombatWorker modes use the game's TestMode
+// branch.
 static class BundleSelector
 {
     static bool _installed;
@@ -32,7 +32,6 @@ static class BundleSelector
         {
             MethodInfo method = typeof(CardSelectCmd).GetMethod("FromChooseABundleScreen")!;
             var harmony = new Harmony("combat-parity.bundle-decisions");
-            harmony.Unpatch(method, HarmonyPatchType.Prefix, "sts2headless.locpatch");
             harmony.Patch(method, prefix: new HarmonyMethod(typeof(BundleSelector).GetMethod(nameof(Prefix))!));
             _installed = true;
         }

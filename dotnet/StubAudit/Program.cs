@@ -1,11 +1,9 @@
 // Which Godot members does sts2.dll reference that GodotStubs' GodotSharp.dll does not define, and which game methods use them?
 // A missing member throws MissingMethodException when a method calling it is compiled, so each one is a fight, event or
 // rest option that dies headless once play reaches it. Most callers sit under MegaCrit.Sts2.Core.Nodes (UI); the ones
-// outside it are the ones to read, and sts2-cli-stubs.patch covers those on gameplay paths. Rerun after a game or
-// sts2-cli bump:
+// outside it are the ones to read, and dotnet/GodotStubs covers those on gameplay paths. Rerun after a game bump:
 //
-//   W=research/combat_parity/.work/sts2-cli
-//   dotnet run --project research/combat_parity/StubAudit -- $W/lib/sts2.dll $W/src/GodotStubs/bin/Debug/net9.0/GodotSharp.dll
+//   dotnet run --project dotnet/StubAudit -- lib/sts2.dll dotnet/GodotStubs/bin/Debug/net9.0/GodotSharp.dll
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Reflection.Emit;

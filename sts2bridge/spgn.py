@@ -6,8 +6,8 @@ recorder (decompiled from spirebird_stats 1.1.0, recorder 0.7.0): magic
 u32 body length, CBOR array of records, CRC-32C. Field numbers are the
 constants in ``Spgn.cs``; only the ones this study reads are named here.
 
-    python3 -m research.combat_parity.spgn TAPE.spgn            # summary
-    python3 -m research.combat_parity.spgn TAPE.spgn --excerpt OUT.json
+    python3 -m sts2bridge.spgn TAPE.spgn            # summary
+    python3 -m sts2bridge.spgn TAPE.spgn --excerpt OUT.json
 
 Needs ``cbor2`` (see requirements-combat-parity.txt); the committed excerpt
 does not.

@@ -1,4 +1,4 @@
-"""A worker observation as a set of tokens, following research/combat_parity/docs/what-we-give-it.md.
+"""A worker observation as a set of tokens, following docs/what-we-give-it.md.
 
 Every token is a kind, an id, up to four small ids (zone, card type, orb position, owner…) and a few numbers. All
 ids share one namespaced vocabulary and one embedding table. Piles are sets, so nothing but the orb queue carries

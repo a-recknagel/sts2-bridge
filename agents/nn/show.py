@@ -1,21 +1,17 @@
 """Print a checkpoint's line on the recorded fight, turn by turn, in the hand-win fixture's format.
 
-    research/combat_nn/.venv/bin/python -m research.combat_nn.show runs/seeds/best.pt [--seed EVAL-3] [--sample]
+    .venv/bin/python -m agents.nn.show runs/seeds/best.pt [--seed EVAL-3] [--sample]
 """
 
 import argparse
-import sys
-from pathlib import Path
 
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from sts2bridge import CombatWorker, card_name
 
-from research.combat_nn.encode import Vocab, collate, encode  # noqa: E402
-from research.combat_nn.model import Net  # noqa: E402
-from research.combat_nn.train import MAX_TURNS, start  # noqa: E402
-from research.combat_parity.combat_worker import CombatWorker  # noqa: E402
-from research.combat_parity.test_hand_win import card_name  # noqa: E402
+from .encode import Vocab, collate, encode
+from .model import Net
+from .train import MAX_TURNS, start
 
 
 def load(path):
