@@ -70,20 +70,12 @@ agents/run/          whole-run player: search in combat, priors outside it
 docs/                how parity was established, what the policy is given, findings
 ```
 
-The parity work, reply format, and history are in [the combat parity notes](docs/combat-parity.md).
+For combat specs, whole runs, and debugging, see [Running fights from Python](docs/combat-parity.md).
 For the inputs available to an agent, see [what a combat policy sees](docs/what-we-give-it.md).
-
-## Origin
-
-This grew out of `research/combat_parity` and `research/combat_nn` in my `neows_ledger` project and was
-extracted on 2026-09-28. The run agent's priors file is still built there (`research/run_priors.py`),
-because that's where the source data lives.
 
 ## License
 
-[MIT](LICENSE). Use it, change it, build something with it. Keep the notices.
-The vendored sts2-cli code retains [Hao Wu's MIT notice](dotnet/GodotStubs/LICENSE-sts2-cli).
-The game and its assets belong to Mega Crit and aren't covered by this license; bring your own installation.
+[MIT](LICENSE).
 
 ## Thanks
 
