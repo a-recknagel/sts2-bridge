@@ -2,17 +2,21 @@
 
 Run Slay the Spire 2 headless and step through combats and whole runs from Python.
 
-It can replay the game's `.mcr` combat recordings, build combat specs from `.run` history files,
-and parse Spirebird `.spgn` tapes into JSON for replay validation and analysis. It can also start
-new whole runs under Python control.
+The game's own `sts2.dll` runs against stubbed Godot, with Python supplying an action at each decision point.
+The rules stay; the clicking goes. This started as plumbing for my own game-agent experiments.
 
-This started as plumbing for my own experiments with game agents. It turned out to be useful on its own.
+Ways in:
 
-The game's own `sts2.dll` runs against stubbed Godot, with Python supplying actions at each decision point.
-The rules stay; the clicking goes.
+- **`.mcr`**: the game's combat recording. Replay it, or load it and step from the first turn.
+- **`.run`**: the game's run history. Build a combat spec from any fight in it.
+- **New run**: start a whole run under Python control.
 
-For a reference, I used a recorded Insatiable boss fight. Replay and step-by-step play both match all 49
-of the game's state checksums. The tests keep checking.
+Parity is pinned on one recorded Insatiable boss fight. Replay and stepping both match all 49 of the game's
+state checksums, and the tests keep checking.
+
+Spirebird `.spgn` tapes are read-only here. `sts2bridge.spgn` excerpts a tape's last combat to JSON, and the
+tests use that excerpt as a second witness: Spirebird's 49 checksums must equal the game's. A tape can't be
+loaded, replayed, or handed to a policy.
 
 ```python
 from examples.basic_policy import policy
@@ -48,7 +52,8 @@ If the game isn't in a default Steam location, pass its directory to `./setup.sh
 The script patches a local copy of the DLL; it only reads from the install. The tests also check that
 nothing in the game's save directory changes.
 
-For the neural agent in `agents/nn`, install the optional dependencies:
+Optional extras: `.[nn]` (torch, numpy) for `agents/nn`, `.[spgn]` (cbor2) for reading raw tapes.
+The committed excerpt needs neither.
 
 ```sh
 uv venv .venv
@@ -66,9 +71,9 @@ dotnet/
   CombatWorker/      the JSON-lines worker: load / start / step, start_run / run_step
   ReplayCheck/       replays an .mcr and diffs every checksum
   StubAudit/         which Godot members sts2.dll needs that the stubs lack; rerun per game version
-sts2bridge/          Python client (worker.py), pinned fixtures, Spirebird tape reader
+sts2bridge/          Python client (worker.py), pinned fixtures, .spgn excerpter
 tests/               the contract: replay 49/49, step 49/49, hand-played win, specs, runs
-fixtures/            the Insatiable fight: .mcr, .run, hand-win, Spirebird excerpt
+fixtures/            the Insatiable fight: .mcr, .run, hand-win, .spgn excerpt
 agents/nn/           PPO on the Insatiable fight
 agents/run/          whole-run player: search in combat, priors outside it
 docs/                how parity was established, what the policy is given, findings

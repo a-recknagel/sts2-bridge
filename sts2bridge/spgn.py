@@ -9,7 +9,7 @@ constants in ``Spgn.cs``; only the ones this study reads are named here.
     python3 -m sts2bridge.spgn TAPE.spgn            # summary
     python3 -m sts2bridge.spgn TAPE.spgn --excerpt OUT.json
 
-Needs ``cbor2`` (see requirements-combat-parity.txt); the committed excerpt
+Needs ``cbor2`` (``pip install -e .[spgn]``); the committed excerpt
 does not.
 """
 
