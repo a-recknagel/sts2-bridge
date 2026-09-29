@@ -42,7 +42,7 @@ Most of what you need is in three reply fields:
 |---|---|
 | `obs` | Player, cards, piles, orbs, relics, enemies, and their intents |
 | `legal` | Available actions, including single-card choices |
-| `choice` | Options and pick counts when a card choice is pending |
+| `choice` | Options and pick counts when a card choice is pending, and what it is for: `screen` (the game's selection method), `prompt` (its prompt key, such as `TO_DISCARD`), and `source` (the card, relic or power that asked) |
 
 The [observation notes](what-we-give-it.md) describe the fields in more detail.
 For debugging, replies also include `state_hash`, `checkpoints`, `enqueued_by_game`, and
@@ -74,8 +74,19 @@ reconstruct the deck at every earlier floor.
 
 You can also build a spec yourself: `character`, `ascension`, `seed`, `encounter`, an optional
 `act`, and `player` fields in the game's save format. Unspecified player fields keep their
-fresh-run defaults. `worker.catalog()` lists characters and encounters. Unknown IDs are rejected.
-The same spec and seed reproduce the same fight.
+fresh-run defaults. `worker.catalog()` lists characters with their starting HP, and encounters with their room
+type, acts, and whether they are in an act's weak (opening hallway) pool. Unknown IDs are rejected.
+The same spec and seed reproduce the same fight. An optional `run` overlays run-level save fields
+the same way, such as `map_point_history`, which sets the floor an encounter seeds its monsters
+with; [Reconstructing a fight](reconstructing-fights.md) uses it to re-enter fights from real runs.
+With `STS2_DUMP` set in the worker's environment, each checkpoint also carries the game's text
+dump of the state it hashed.
+
+For training, `worker.start(spec, hashes=False, reuse_map=True)` plays the same fight for less.
+`hashes=False` (also on `load`) leaves `state_hash` null and `checkpoints` empty, skipping a full-state
+serialisation per reply and per action; `reuse_map=True` generates the act's map once per spec rather
+than once per seed. To keep several workers busy from one thread, `send` to each, then `receive` from each
+in the same order.
 
 For buffs or other experimental changes, see [sandbox changes](sandbox-manipulations.md).
 

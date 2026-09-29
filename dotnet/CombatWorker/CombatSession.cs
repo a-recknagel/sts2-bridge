@@ -26,6 +26,7 @@ using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Saves.Runs;
 using MegaCrit.Sts2.Core.TestSupport;
 using static Substrate;
 
@@ -48,7 +49,11 @@ sealed class CombatSession
     readonly RunState _run;
     readonly Player _me;
     readonly CallerSelector _selector = new();
+    // Off for training: no state hash per reply and no checksum after every action. Both serialise the whole combat
+    // state and neither feeds gameplay; parity checks need them on.
+    bool _hashes = true;
     long _loadMs;
+    readonly Dictionary<string, double> _loadPhases = new();
     readonly List<object> _checkpoints = new();         // generated since the last report
     readonly List<GameAction> _enqueued = new();         // every action queued since the last input
     readonly HashSet<GameAction> _ours = new();          // the subset the worker queued itself
@@ -74,6 +79,7 @@ sealed class CombatSession
         RestorePostActionChecksum();
         rm.ActionQueueSet.ActionEnqueued += a => session._enqueued.Add(a);
         rm.CombatStateSynchronizer.IsDisabled = true;
+        ChoiceContext.Install();
         _selectorScope = CardSelectCmd.UseSelector(session._selector, localOnly: true);
         return session;
     }
@@ -98,13 +104,15 @@ sealed class CombatSession
     public void EnableRewardSelector() => _rewardSelectorScope ??= CardSelectCmd.UseSelector(_selector);
     public void DisableRewardSelector() { _rewardSelectorScope?.Dispose(); _rewardSelectorScope = null; }
 
+    static readonly Dictionary<string, SerializableActMap> MapCache = new();
+
     // A recorded fight: the .mcr's initial state, its id cursors, and the room it was saved in.
-    public static CombatSession Load(string mcrPath)
+    public static CombatSession Load(string mcrPath, bool hashes = true)
     {
         var sw = Stopwatch.StartNew();
         CombatReplay replay = Tape.ReadReplay(mcrPath);
         SerializableRun save = replay.serializableRun;
-        return Enter(sw, save, rm =>
+        return Enter(sw, save, hashes, (rm, _) =>
         {
             // The recording's id cursors are part of its initial state: every id the game hands out from here on
             // (actions, hooks, choices, rewards, checkpoints) continues from where the real run was.
@@ -123,11 +131,31 @@ sealed class CombatSession
     // Unlike those, the run first stands on a node of the act's map, as every real fight does: game code reads
     // RunState.CurrentMapPoint at combat start (Fur Coat's BeforeCombatStart dereferences it). The node is the first
     // of the encounter's type that no relic has marked, so the fight is an ordinary one, not a Fur Coat node.
-    public static CombatSession Start(JsonObject spec)
+    //
+    // With reuseMap, the act's map is generated once per spec (seed aside) and later starts load it the way a save does,
+    // since generating it is most of a start. The map has its own RNG stream (StandardActMap.CreateFor seeds
+    // "act_N_map"), so the fight a seed gives is unchanged; test_combat_spec checks that hash for hash.
+    public static CombatSession Start(JsonObject spec, bool hashes = true, bool reuseMap = false)
     {
         var sw = Stopwatch.StartNew();
         (SerializableRun save, EncounterModel encounter) = CombatSpec.ToSave(spec);
-        return Enter(sw, save, _ => { }, (rm, run) =>
+        double toSave = sw.Elapsed.TotalMilliseconds;
+        string? mapKey = null;
+        if (reuseMap)
+        {
+            JsonObject key = spec.DeepClone().AsObject();
+            key.Remove("seed");
+            mapKey = key.ToJsonString();
+            if (MapCache.TryGetValue(mapKey, out SerializableActMap? cached)) save.Acts[save.CurrentActIndex].SavedMap = cached;
+        }
+        CombatSession session = Enter(sw, save, hashes, (_, run) =>
+        {
+            if (mapKey != null && !MapCache.ContainsKey(mapKey) && run.Map is { } map)
+            {
+                if (MapCache.Count >= 256) MapCache.Clear();
+                MapCache[mapKey] = SerializableActMap.FromActMap(map);
+            }
+        }, (rm, run) =>
         {
             MapPointType type = encounter.RoomType switch { RoomType.Elite => MapPointType.Elite, RoomType.Boss => MapPointType.Boss, _ => MapPointType.Monster };
             MapPoint? node = type == MapPointType.Boss ? run.Map.BossMapPoint
@@ -137,10 +165,15 @@ sealed class CombatSession
                 ? rm.EnterRoomDebug(encounter.RoomType, type, encounter.ToMutable(), showTransition: false)
                 : rm.EnterMapCoordDebug(node.coord, encounter.RoomType, type, encounter.ToMutable(), showTransition: false);
         });
+        session._loadPhases["to_save"] = toSave;
+        return session;
     }
 
-    static CombatSession Enter(Stopwatch sw, SerializableRun save, Action<RunManager> beforeRoom, Func<RunManager, RunState, Task> enterRoom)
+    static CombatSession Enter(Stopwatch sw, SerializableRun save, bool hashes, Action<RunManager, RunState> beforeRoom, Func<RunManager, RunState, Task> enterRoom)
     {
+        var phases = new Dictionary<string, double>();
+        double mark = sw.Elapsed.TotalMilliseconds;
+        void Phase(string name) { double now = sw.Elapsed.TotalMilliseconds; phases[name] = now - mark; mark = now; }
         if (RunManager.Instance.IsInProgress) RunManager.Instance.CleanUp(graceful: true);
         _selectorScope?.Dispose(); // CardSelectCmd.Reset leaves selectors alone while TestMode is on
         _rewardSelectorScope?.Dispose();
@@ -149,28 +182,38 @@ sealed class CombatSession
         BundleSelector.Deactivate();
         lock (_gameErrors) _gameErrors.Clear();
 
+        Phase("clean_up");
         RunState run = RunState.FromSerializable(save);
-        var session = new CombatSession(run);
+        var session = new CombatSession(run) { _hashes = hashes };
+        Phase("from_save");
         SetUpSingleplayer(run, save);
+        Phase("set_up");
         RunManager rm = RunManager.Instance;
-        // TestMode.IsOn (set by HeadlessInit) disables the game's checksum tracker; turn it back on.
-        rm.ChecksumTracker.IsEnabled = true;
-        rm.ChecksumTracker.ChecksumGenerated += (data, context, _) =>
-            session._checkpoints.Add(new { id = data.id, hash = data.checksum, context = NormalizeContext(context) });
-        RestorePostActionChecksum();
+        // TestMode.IsOn (set by HeadlessInit) disables the game's checksum tracker; turn it back on, unless hashes are off.
+        rm.ChecksumTracker.IsEnabled = hashes;
+        rm.ChecksumTracker.ChecksumGenerated += (data, context, full) =>
+            session._checkpoints.Add(Environment.GetEnvironmentVariable("STS2_DUMP") == null
+                ? new { id = data.id, hash = data.checksum, context = NormalizeContext(context) }
+                : new { id = data.id, hash = data.checksum, context = NormalizeContext(context), dump = full.ToString() });
+        if (hashes) RestorePostActionChecksum();
         rm.ActionQueueSet.ActionEnqueued += a => session._enqueued.Add(a);
         rm.CombatStateSynchronizer.IsDisabled = true;
         rm.Launch(); // sets LocalContext.NetId from the net service
         Await(rm.GenerateMap(), "GenerateMap");
-        beforeRoom(rm);
+        Phase("map");
+        beforeRoom(rm, run);
+        ChoiceContext.Install();
         _selectorScope = CardSelectCmd.UseSelector(session._selector, localOnly: true);
         Await(enterRoom(rm, run), "room entry");
+        Phase("room");
         // Combat start runs under TaskHelper.RunSafely: if it throws, the error is logged and the executor stays paused.
         WaitFor(() => !rm.ActionExecutor.IsPaused || AnyGameError);
         if (rm.ActionExecutor.IsPaused)
             throw new InvalidOperationException("the combat did not start: " + (AnyGameError ? FirstLine(LastGameError()) : "timed out waiting for the action executor"));
         session.AwaitBoundary();
+        Phase("first_boundary");
         session._loadMs = sw.ElapsedMilliseconds;
+        foreach ((string k, double v) in phases) session._loadPhases[k] = v;
         return session;
     }
 
@@ -307,14 +350,14 @@ sealed class CombatSession
         {
             ok = true,
             boundary,
-            state_hash = Hash(NetFullCombatState.FromRun(_run, null)),
+            state_hash = _hashes ? Hash(NetFullCombatState.FromRun(_run, null)) : (uint?)null,
             obs = Observe(),
             legal = boundary switch { "awaiting_input" => LegalInputs(), "awaiting_choice" => _selector.Pending!.LegalPicks(), _ => new List<object>() },
             choice = _selector.Pending?.Describe(this),
             checkpoints,
             enqueued_by_game = _enqueued.Where(a => !_ours.Contains(a)).Select(a => a.GetType().Name).ToList(),
             game_errors = TakeGameErrors(),
-            ms = what == "load" ? (object)new { load = _loadMs } : new { step = stepMs },
+            ms = what == "load" ? (object)new { load = _loadMs, phases = _loadPhases.ToDictionary(kv => kv.Key, kv => Math.Round(kv.Value, 2)) } : new { step = stepMs },
         };
     }
 
@@ -379,8 +422,11 @@ sealed class CombatSession
             encounter = cs?.Encounter?.Id.ToString(),
             player = new
             {
+                character = _me.Character.Id.ToString(),
                 hp = body.CurrentHp, max_hp = body.MaxHp, block = body.Block,
                 energy = pcs?.Energy, max_energy = pcs?.MaxEnergy, stars = pcs?.Stars,
+                // Necrobinder's Osty: HP only. It never has block, and the powers that work through it are the player's.
+                osty = _me.Osty is { } osty ? new { hp = osty.CurrentHp, max_hp = osty.MaxHp, alive = osty.IsAlive } : null,
                 powers = Powers(body),
                 orbs = pcs?.OrbQueue.Orbs.Select(o => new { id = o.Id.ToString(), passive = (int)o.PassiveVal, evoke = (int)o.EvokeVal }).ToList(),
                 orb_capacity = pcs?.OrbQueue.Capacity,
@@ -474,7 +520,7 @@ sealed class CombatSession
 
         public Task<IEnumerable<CardModel>> GetSelectedCards(IEnumerable<CardModel> options, int minSelect, int maxSelect)
         {
-            Pending = new PendingChoice(options.ToList(), minSelect, maxSelect);
+            Pending = new PendingChoice(options.ToList(), minSelect, maxSelect, ChoiceContext.Take());
             return Pending.Result.Task;
         }
 
@@ -506,11 +552,19 @@ sealed class CombatSession
         }
     }
 
-    sealed record PendingChoice(List<CardModel> Options, int Min, int Max)
+    sealed record PendingChoice(List<CardModel> Options, int Min, int Max, ChoiceContext.Context? Context)
     {
         public TaskCompletionSource<IEnumerable<CardModel>> Result { get; } = new();
 
-        public object Describe(CombatSession _) => new { min = Min, max = Max, options = Options.Select(Card).ToList() };
+        // screen: the CardSelectCmd method; prompt: the game's prompt key; source: the model that asked, or else the
+        // card whose play is paused on the choice.
+        public object Describe(CombatSession session) => new
+        {
+            min = Min, max = Max, options = Options.Select(Card).ToList(),
+            screen = Context?.Screen, prompt = Context?.Prompt,
+            source = Context?.Source ?? session._enqueued.OfType<PlayCardAction>()
+                .FirstOrDefault(a => a.State == GameActionState.GatheringPlayerChoice)?.CardModelId.ToString(),
+        };
 
         // Enumerated only when a single pick is asked for; multi-picks are described by min/max over the options.
         public List<object> LegalPicks()

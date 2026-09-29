@@ -57,7 +57,7 @@ class HandWinTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.saves_before = save_dir_snapshot()
-        subprocess.run(["dotnet", "build", "-v", "q", str(PROJECT)], check=True, capture_output=True)
+        subprocess.run(["dotnet", "build", "-v", "q", "-c", "Release", str(PROJECT)], check=True, capture_output=True)
         cls.fixture = json.loads(WIN.read_text())
         cls.worker = CombatWorker()
         cls.turns, cls.end, cls.trace = play_line(cls.worker, cls.fixture["inputs"])

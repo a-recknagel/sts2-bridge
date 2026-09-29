@@ -58,7 +58,7 @@ class CombatSpecTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.saves_before = save_dir_snapshot()
-        subprocess.run(["dotnet", "build", "-v", "q", str(PROJECT)], check=True, capture_output=True)
+        subprocess.run(["dotnet", "build", "-v", "q", "-c", "Release", str(PROJECT)], check=True, capture_output=True)
         cls.worker = CombatWorker()
         cls.catalog = cls.worker.catalog()
 
@@ -114,6 +114,34 @@ class CombatSpecTests(unittest.TestCase):
         other = self.worker.start({**spec, "seed": "OTHER"})
         self.assertNotEqual(other["state_hash"], first[0])
 
+    def test_training_starts_play_the_same_fight(self):
+        # Training starts with hashes off and the act's map reused from an earlier seed. Map generation has its own
+        # RNG stream, so a seed's fight is unchanged hash for hash; with hashes off only the hashes go.
+        run = run_fixture()
+        for encounter in (INSATIABLE, "ENCOUNTER.NIBBITS_WEAK"):  # the boss node, and a hallway node of the cached map
+            spec = spec_from_run(run, encounter, seed="TRAINING")
+
+            def trace(**start):
+                state, seen = self.worker.start(spec, **start), []
+                rng = random.Random(encounter)
+                while True:
+                    seen.append({k: v for k, v in state.items() if k != "ms"})
+                    if state["boundary"] == "terminal" or len(seen) > 60:
+                        return seen
+                    multi = {"type": "choose", "picks": list(range((state["choice"] or {}).get("min", 0)))}
+                    state = self.worker.step(rng.choice(state["legal"] or [multi]))
+
+            with self.subTest(encounter=encounter):
+                fresh = trace()
+                self.assertTrue(all(s["state_hash"] is not None for s in fresh))
+                self.worker.start({**spec, "seed": "ANOTHER"}, reuse_map=True)  # caches ANOTHER's map
+                self.assertEqual(trace(reuse_map=True), fresh)
+                bare = trace(hashes=False, reuse_map=True)
+                hashes = ("state_hash", "checkpoints")
+                strip = lambda seen: [{k: v for k, v in s.items() if k not in hashes} for s in seen]
+                self.assertEqual(strip(bare), strip(fresh))
+                self.assertEqual({(s["state_hash"], tuple(s["checkpoints"])) for s in bare}, {(None, ())})
+
     def test_a_deck_can_fight_any_encounter(self):
         # The loss's deck against an act-1 boss and a two-act-early elite: act and monsters follow the encounter.
         run = run_fixture()
@@ -158,6 +186,19 @@ class CombatSpecTests(unittest.TestCase):
         self.assertGreater(state["obs"]["player"]["hp"], 0)
         self.assertEqual(errors, [])
 
+    def test_the_run_overlay_sets_the_floor_monsters_are_seeded_with(self):
+        # An encounter seeds its monsters with the run seed, the floor number and its id; the floor is the length of
+        # the map history. One entry (the fixture's Neow room) puts the fight on floor 2. (With the fixture's own seed
+        # these slimes happen to come out the same on every floor, so this uses another.)
+        run = run_fixture()
+        spec = {"character": "CHARACTER.DEFECT", "ascension": 10, "seed": "FLOORTEST", "encounter": "ENCOUNTER.SLIMES_WEAK"}
+        monsters = lambda s: [(e["id"], e["hp"]) for e in s["obs"]["enemies"]]
+        floor1 = monsters(self.worker.start(spec))
+        after_neow = {**spec, "run": {"map_point_history": [run["map_point_history"][0][:1]]}}
+        floor2 = monsters(self.worker.start(after_neow))
+        self.assertNotEqual(floor2, floor1)
+        self.assertEqual(monsters(self.worker.start(after_neow)), floor2)
+
     def test_specs_the_build_cannot_honour_are_refused(self):
         base = spec_from_run(run_fixture(), INSATIABLE, seed="ANY")
         modded = json.loads(json.dumps(base))
@@ -168,6 +209,7 @@ class CombatSpecTests(unittest.TestCase):
             "no seed": ({k: v for k, v in base.items() if k != "seed"}, "seed"),
             "unknown encounter": ({**base, "encounter": "ENCOUNTER.DOORMAKER_BOSS"}, "DOORMAKER_BOSS"),
             "net id": ({**base, "player": {**base["player"], "net_id": 7}}, "net_id"),
+            "run players": ({**base, "run": {"players": []}}, "run.players"),
         }
         for name, (spec, needle) in cases.items():
             with self.subTest(name), self.assertRaisesRegex(WorkerError, needle):

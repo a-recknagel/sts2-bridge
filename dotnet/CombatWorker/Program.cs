@@ -4,6 +4,9 @@
 //   {"cmd":"load","mcr":"<path>"}           enter the recorded fight's room; returns the first boundary
 //   {"cmd":"start","spec":{...}}            enter any fight from a character, deck, relics, HP and encounter
 //                                           (CombatSpec.cs); returns the first boundary
+//                                           load and start take "hashes":false for training: no state_hash and no
+//                                           checkpoints, which cost a full-state serialisation each and feed nothing;
+//                                           start takes "reuse_map":true to generate the act map once per spec
 //   {"cmd":"step","action":{...}}           play / end_turn / potion / choose; returns the next boundary
 //   {"cmd":"observe"}                       the current boundary again, without acting
 //   {"cmd":"tape","mcr":"<path>"}           the recorded inputs and checkpoints, decoded (no game state touched)
@@ -63,8 +66,8 @@ static class Worker
                 if (cmd is "load" or "start") runSession = null;
                 response = cmd switch
                 {
-                    "load" => (session = CombatSession.Load((string)req["mcr"]!)).Report("load"),
-                    "start" => (session = CombatSession.Start(req["spec"]?.AsObject() ?? throw new ArgumentException("missing spec"))).Report("load"),
+                    "load" => (session = CombatSession.Load((string)req["mcr"]!, Hashes(req))).Report("load"),
+                    "start" => (session = CombatSession.Start(req["spec"]?.AsObject() ?? throw new ArgumentException("missing spec"), Hashes(req), (bool?)req["reuse_map"] ?? false)).Report("load"),
                     "step" => (session ?? throw new InvalidOperationException("no combat loaded")).Step(req["action"]?.AsObject() ?? throw new ArgumentException("missing action")),
                     "observe" => (session ?? throw new InvalidOperationException("no combat loaded")).Report("observe"),
                     "start_run" => (runSession = RunSession.Start(req["spec"]?.AsObject() ?? throw new ArgumentException("missing spec"))).Report(),
@@ -85,4 +88,6 @@ static class Worker
         }
         return 0;
     }
+
+    static bool Hashes(JsonObject req) => (bool?)req["hashes"] ?? true;
 }

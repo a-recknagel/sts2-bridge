@@ -72,7 +72,8 @@ static class Substrate
     public static string NormalizeContext(string? c) => System.Text.RegularExpressions.Regex.Replace(c ?? "", @"\(\d+\)", "(#)");
 
     // Each poll is a frame: first the deferred calls Godot would flush at idle time (GameAction.Cancel completes its
-    // task that way; see ../GodotStubs/Types.cs), then the condition.
+    // task that way; see ../GodotStubs/Types.cs), then the condition. The game's own work finishes on pool threads
+    // within microseconds, so the first polls only yield; sleeping 1 ms each time was most of a step.
     public static bool WaitFor(Func<bool> cond, int timeoutMs = StepTimeoutMs)
     {
         var sw = Stopwatch.StartNew();
@@ -81,7 +82,8 @@ static class Substrate
             Godot.DeferredCalls.Flush();
             if (cond()) return true;
             if (sw.ElapsedMilliseconds > timeoutMs) return false;
-            Thread.Sleep(1);
+            if (sw.ElapsedMilliseconds < 2) Thread.Yield();
+            else Thread.Sleep(1);
         }
     }
 

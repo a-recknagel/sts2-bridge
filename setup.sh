@@ -32,6 +32,5 @@ for dll in "${DLLS[@]}"; do
 done
 
 dotnet run -v q --project "$HERE/dotnet/Patcher" -- "$HERE/lib/sts2.dll"
-for p in CombatWorker ReplayCheck; do
-    dotnet build -v q "$HERE/dotnet/$p/$p.csproj"
-done
+dotnet build -v q "$HERE/dotnet/ReplayCheck/ReplayCheck.csproj"
+dotnet build -v q -c Release "$HERE/dotnet/CombatWorker/CombatWorker.csproj"

@@ -39,7 +39,7 @@ class StepWorkerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.saves_before = save_dir_snapshot()
-        subprocess.run(["dotnet", "build", "-v", "q", str(PROJECT)], check=True, capture_output=True)
+        subprocess.run(["dotnet", "build", "-v", "q", "-c", "Release", str(PROJECT)], check=True, capture_output=True)
         cls.worker = CombatWorker()
         cls.tape = cls.worker.tape(MCR)
         cls.trace = play_recording(cls.worker, cls.tape)
@@ -84,6 +84,8 @@ class StepWorkerTests(unittest.TestCase):
         self.assertEqual(hologram["boundary"], "awaiting_choice")
         self.assertEqual((hologram["choice"]["min"], hologram["choice"]["max"]), (1, 1))
         self.assertIn("CARD.COOLHEADED", [o["id"] for o in hologram["choice"]["options"]])
+        self.assertEqual({k: hologram["choice"][k] for k in ("screen", "prompt", "source")},
+                         {"screen": "FromCombatPile", "prompt": "HOLOGRAM.selectionScreenPrompt", "source": "CARD.HOLOGRAM"})
         self.assertEqual(by_event[32]["boundary"], "terminal")  # the last end turn; the enemy turn kills the player
         self.assertEqual({r["boundary"] for i, r in by_event.items() if i not in (24, 32)}, {"awaiting_input"})
 

@@ -11,7 +11,8 @@ using MegaCrit.Sts2.Core.Unlocks;
 //
 //   {"character": "CHARACTER.DEFECT", "ascension": 10, "seed": "ANY", "encounter": "ENCOUNTER.THE_INSATIABLE_BOSS",
 //    "act": 1,                                   optional; defaults to the act whose encounter list has it
-//    "player": {"current_hp": 50, "max_hp": 75, "deck": [...], "relics": [...], "potions": [...], ...}}
+//    "player": {"current_hp": 50, "max_hp": 75, "deck": [...], "relics": [...], "potions": [...], ...},
+//    "run": {"rng": {...}, "map_point_history": [[...]]}}       optional
 //
 // "player" is a partial SerializablePlayer in the game's own JSON, the shape a .run history file (the local
 // saves/history and the Spire Codex export alike) records its players in: deck entries are SerializableCards with
@@ -23,6 +24,10 @@ using MegaCrit.Sts2.Core.Unlocks;
 // ascension effects, room generation), and comes back out as RunManager.ToSave. The player is then overlaid and the
 // result loaded like any save: nothing is obtained, so relics' on-pickup effects do not fire a second time. What
 // the spec says the player has is what they have.
+//
+// "run" is a partial SerializableRun, overlaid the same way before the player. It is how a spec re-enters a fight a
+// run really had: the run's RNG counters at that combat, and the map history before it, which sets the floor number
+// the encounter seeds its monsters with (EncounterModel.GenerateMonstersWithSlots).
 static class CombatSpec
 {
     public static (SerializableRun Save, EncounterModel Encounter) ToSave(JsonObject spec)
@@ -49,6 +54,14 @@ static class CombatSpec
         // generates the act's real map from the seed, as the start of an act does.
         foreach (SerializableActModel act in save.Acts) act.SavedMap = null;
 
+        if (spec["run"] is JsonObject runOverlay)
+        {
+            SerializablePlayer fresh = save.Players[0];
+            save = Merge(save, runOverlay, key => key is "players" or "acts"
+                ? $"run.{key} comes from the spec's character, act and encounter" : null);
+            save.Players[0] = fresh;
+            foreach (SerializableActModel act in save.Acts) act.SavedMap = null;
+        }
         if (spec["player"] is JsonObject overlay) save.Players[0] = Overlay(save.Players[0], overlay);
         return (save, encounter);
     }
@@ -57,14 +70,20 @@ static class CombatSpec
     static SerializablePlayer Overlay(SerializablePlayer fresh, JsonObject overlay)
     {
         RequireKnownIds(overlay);
+        return Merge(fresh, overlay, key => key is "character_id" or "net_id"
+            ? $"player.{key} comes from the spec's character and the worker" : null);
+    }
+
+    static T Merge<T>(T fresh, JsonObject overlay, Func<string, string?> refuse)
+    {
         JsonObject merged = JsonSerializer.SerializeToNode(fresh, JsonSerializationUtility.Options)!.AsObject();
         foreach ((string key, JsonNode? value) in overlay)
         {
-            if (key is "character_id" or "net_id") throw new ArgumentException($"player.{key} comes from the spec's character and the worker");
+            if (refuse(key) is string why) throw new ArgumentException(why);
             merged[key] = value?.DeepClone();
         }
-        return merged.Deserialize<SerializablePlayer>(JsonSerializationUtility.Options)
-            ?? throw new ArgumentException("player overlay deserialised to null");
+        return merged.Deserialize<T>(JsonSerializationUtility.Options)
+            ?? throw new ArgumentException($"{typeof(T).Name} overlay deserialised to null");
     }
 
     // A save with an id this build does not know loads anyway: SaveUtil swaps in DeprecatedCard, DeprecatedRelic and
@@ -117,12 +136,15 @@ static class CombatSpec
     {
         ok = true,
         characters = ModelDb.AllCharacters.Select(c => c.Id.ToString()).ToList(),
+        starting_hp = ModelDb.AllCharacters.ToDictionary(c => c.Id.ToString(), c => c.StartingHp),
         encounters = ModelDb.AllEncounters.Select(e => new
         {
             id = e.Id.ToString(),
             room_type = e.RoomType.ToString(),
             acts = ModelDb.Acts.Where(a => a.AllEncounters.Any(x => x.Id == e.Id)).Select(a => a.Id.ToString()).ToList(),
             act_index = ActIndexOf(e),
+            // In an act's weak pool: the hallway fights the game draws for the first floors of the act.
+            weak = ModelDb.Acts.Any(a => a.AllWeakEncounters.Any(x => x.Id == e.Id)),
         }).ToList(),
     };
 }
