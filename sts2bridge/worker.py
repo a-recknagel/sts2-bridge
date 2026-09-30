@@ -24,7 +24,7 @@ import os
 import socket
 import subprocess
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LIB = ROOT / "lib" / "sts2.dll"  # present once ./setup.sh has copied and patched the game's DLLs
@@ -77,9 +77,12 @@ class CombatWorker:
     def receive(self):
         return self._read()
 
+    def _worker_path(self, path):
+        return str(Path(path).resolve())
+
     def load(self, mcr, hashes=True):
         # The worker runs in its own scratch directory, so hand it an absolute path.
-        return self.request("load", mcr=str(Path(mcr).resolve()), hashes=hashes)
+        return self.request("load", mcr=self._worker_path(mcr), hashes=hashes)
 
     def start(self, spec, hashes=True, reuse_map=False):
         """Enter any fight from a spec: character, ascension, seed, encounter and a partial save player (see
@@ -120,7 +123,7 @@ class CombatWorker:
     def run_combat_snapshot(self, path):
         """Write the game's own recording of the current run combat as an .mcr. Its initial state is the run as it
         entered this room, so another worker's ``load`` re-enters the same fight while this run carries on."""
-        return self.request("run_combat_snapshot", path=str(Path(path).resolve()))
+        return self.request("run_combat_snapshot", path=self._worker_path(path))
 
     def run_observe(self):
         return self.request("run_observe")
@@ -132,7 +135,7 @@ class CombatWorker:
         return self.request("observe")
 
     def tape(self, mcr):
-        return self.request("tape", mcr=str(Path(mcr).resolve()))
+        return self.request("tape", mcr=self._worker_path(mcr))
 
     def close(self):
         if self._proc.poll() is None:
@@ -144,12 +147,11 @@ class CombatWorker:
             self._run_trace.close()
         self._log.close()
 
+
 class CombatWorkerContainer(CombatWorker):
-    def __init__(self, address, container_root, *, workdir=None):
+    def __init__(self, address, *, workdir=None):
         self.workdir = Path(workdir or tempfile.mkdtemp(prefix="combat-worker-container-"))
         self.workdir.mkdir(parents=True, exist_ok=True)
-        self.log_path = self.workdir / "worker.stderr"
-        self.container_root = PurePosixPath(container_root)
         self._socket = socket.create_connection(address)
         self._stdin = self._socket.makefile("w", encoding="utf-8", buffering=1)
         self._stdout = self._socket.makefile("r", encoding="utf-8", buffering=1)
@@ -166,22 +168,9 @@ class CombatWorkerContainer(CombatWorker):
             raise WorkerError(reply.get("error"))
         return reply
 
-    def _container_path(self, path):
-        resolved = Path(path).resolve()
-        try:
-            relative = resolved.relative_to(ROOT.resolve())
-        except ValueError:
-            return str(resolved)
-        return str(self.container_root / relative.as_posix())
-
-    def load(self, mcr, hashes=True):
-        return self.request("load", mcr=self._container_path(mcr), hashes=hashes)
-
-    def run_combat_snapshot(self, path):
-        return self.request("run_combat_snapshot", path=self._container_path(path))
-
-    def tape(self, mcr):
-        return self.request("tape", mcr=self._container_path(mcr))
+    def _worker_path(self, path):
+        # Container paths come from runtime mounts and are already in the worker's namespace.
+        return str(path)
 
     def close(self):
         self._stdin.close()
