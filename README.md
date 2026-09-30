@@ -92,3 +92,24 @@ Thanks to [Mega Crit](https://www.megacrit.com/) for the game,
 [Hao Wu's sts2-cli](https://github.com/wuhao21/sts2-cli) for the headless foundation,
 [jorbs' Spirebird](https://spirebird.com/) for the recorder and community stats,
 and [ptrlrd's Spire Codex](https://github.com/ptrlrd/spire-codex) for the game data.
+
+## Connecting to a container worker
+
+Connect to a TCP container worker with `CombatWorkerContainer`:
+
+```python
+from sts2bridge import CombatWorkerContainer
+
+with CombatWorkerContainer(
+    address=("127.0.0.1", 18888),
+    container_root="/opt/headless-sts2/bridge",
+) as worker:
+    state = worker.start_run("CHARACTER.IRONCLAD", "MYSEED")
+```
+
+`address` connects to the JSON-lines TCP adapter. `container_root` maps paths
+under this checkout, such as `fixtures/*.mcr`, to their copied location in the
+container. The root project's `scripts/Dockerfile.headless-sts2` image
+includes the adapter, and its integration fixture manages the container with
+Testcontainers.
+The default `CombatWorker()` subprocess behavior is unchanged.

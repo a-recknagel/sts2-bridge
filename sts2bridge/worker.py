@@ -21,9 +21,10 @@ the parity test feeds through ``step``.
 
 import json
 import os
+import socket
 import subprocess
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent.parent
 LIB = ROOT / "lib" / "sts2.dll"  # present once ./setup.sh has copied and patched the game's DLLs
@@ -49,12 +50,13 @@ class CombatWorker:
         self._log = open(self.log_path, "w")
         self._proc = subprocess.Popen(["dotnet", str(BINARY)], cwd=self.workdir, text=True, bufsize=1,
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._log)
+        self._stdin, self._stdout = self._proc.stdin, self._proc.stdout
         self.boot_ms = self._read()["boot_ms"]
         self.run_trace_path = None
         self._run_trace = None
 
     def _read(self):
-        line = self._proc.stdout.readline()
+        line = self._stdout.readline()
         if not line:
             raise WorkerError(f"worker exited (rc={self._proc.poll()}); see {self.log_path}")
         reply = json.loads(line)
@@ -69,7 +71,8 @@ class CombatWorker:
     # A request in two halves, so one caller can keep several workers busy at once: send to each, then receive
     # from each. Every send must be matched by one receive, in order.
     def send(self, cmd, **fields):
-        self._proc.stdin.write(json.dumps({"cmd": cmd, **fields}) + "\n")
+        self._stdin.write(json.dumps({"cmd": cmd, **fields}) + "\n")
+        self._stdin.flush()
 
     def receive(self):
         return self._read()
@@ -133,13 +136,59 @@ class CombatWorker:
 
     def close(self):
         if self._proc.poll() is None:
-            self._proc.stdin.write(json.dumps({"cmd": "quit"}) + "\n")
-            self._proc.stdin.close()
+            self._stdin.write(json.dumps({"cmd": "quit"}) + "\n")
+            self._stdin.close()
             self._proc.wait(timeout=30)
-        self._proc.stdout.close()
+        self._stdout.close()
         if self._run_trace:
             self._run_trace.close()
         self._log.close()
+
+class CombatWorkerContainer(CombatWorker):
+    def __init__(self, address, container_root, *, workdir=None):
+        self.workdir = Path(workdir or tempfile.mkdtemp(prefix="combat-worker-container-"))
+        self.workdir.mkdir(parents=True, exist_ok=True)
+        self.log_path = self.workdir / "worker.stderr"
+        self.container_root = PurePosixPath(container_root)
+        self._socket = socket.create_connection(address)
+        self._stdin = self._socket.makefile("w", encoding="utf-8", buffering=1)
+        self._stdout = self._socket.makefile("r", encoding="utf-8", buffering=1)
+        self.boot_ms = self._read()["boot_ms"]
+        self.run_trace_path = None
+        self._run_trace = None
+
+    def _read(self):
+        line = self._stdout.readline()
+        if not line:
+            raise WorkerError("container worker disconnected; inspect the container logs")
+        reply = json.loads(line)
+        if not reply.get("ok"):
+            raise WorkerError(reply.get("error"))
+        return reply
+
+    def _container_path(self, path):
+        resolved = Path(path).resolve()
+        try:
+            relative = resolved.relative_to(ROOT.resolve())
+        except ValueError:
+            return str(resolved)
+        return str(self.container_root / relative.as_posix())
+
+    def load(self, mcr, hashes=True):
+        return self.request("load", mcr=self._container_path(mcr), hashes=hashes)
+
+    def run_combat_snapshot(self, path):
+        return self.request("run_combat_snapshot", path=self._container_path(path))
+
+    def tape(self, mcr):
+        return self.request("tape", mcr=self._container_path(mcr))
+
+    def close(self):
+        self._stdin.close()
+        self._stdout.close()
+        self._socket.close()
+        if self._run_trace:
+            self._run_trace.close()
 
     def __enter__(self):
         return self
