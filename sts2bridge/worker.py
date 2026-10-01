@@ -51,6 +51,11 @@ class CombatWorker:
         self._proc = subprocess.Popen(["dotnet", str(BINARY)], cwd=self.workdir, text=True, bufsize=1,
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self._log)
         self._stdin, self._stdout = self._proc.stdin, self._proc.stdout
+        self._quit_command = json.dumps({"cmd": "quit"}) + "\n"
+        self._quit_if_running = lambda: self._proc.poll() is None
+        self._wait_for_exit = lambda: self._proc.wait(timeout=30)
+        self._close_transport = lambda: None
+        self._read_eof_error = lambda: f"worker exited (rc={self._proc.poll()}); see {self.log_path}"
         self.boot_ms = self._read()["boot_ms"]
         self.run_trace_path = None
         self._run_trace = None
@@ -58,7 +63,7 @@ class CombatWorker:
     def _read(self):
         line = self._stdout.readline()
         if not line:
-            raise WorkerError(f"worker exited (rc={self._proc.poll()}); see {self.log_path}")
+            raise WorkerError(self._read_eof_error())
         reply = json.loads(line)
         if not reply.get("ok"):
             raise WorkerError(reply.get("error"))
@@ -138,14 +143,16 @@ class CombatWorker:
         return self.request("tape", mcr=self._worker_path(mcr))
 
     def close(self):
-        if self._proc.poll() is None:
-            self._stdin.write(json.dumps({"cmd": "quit"}) + "\n")
-            self._stdin.close()
-            self._proc.wait(timeout=30)
+        if self._quit_command and self._quit_if_running():
+            self._stdin.write(self._quit_command)
+        self._stdin.close()
+        self._wait_for_exit()
         self._stdout.close()
+        self._close_transport()
         if self._run_trace:
             self._run_trace.close()
-        self._log.close()
+        if self._log is not None:
+            self._log.close()
 
 
 class CombatWorkerContainer(CombatWorker):
@@ -155,29 +162,19 @@ class CombatWorkerContainer(CombatWorker):
         self._socket = socket.create_connection(address)
         self._stdin = self._socket.makefile("w", encoding="utf-8", buffering=1)
         self._stdout = self._socket.makefile("r", encoding="utf-8", buffering=1)
+        self._quit_command = None
+        self._quit_if_running = lambda: False
+        self._wait_for_exit = lambda: None
+        self._close_transport = self._socket.close
+        self._read_eof_error = lambda: "container worker disconnected; inspect the container logs"
+        self._log = None
         self.boot_ms = self._read()["boot_ms"]
         self.run_trace_path = None
         self._run_trace = None
 
-    def _read(self):
-        line = self._stdout.readline()
-        if not line:
-            raise WorkerError("container worker disconnected; inspect the container logs")
-        reply = json.loads(line)
-        if not reply.get("ok"):
-            raise WorkerError(reply.get("error"))
-        return reply
-
     def _worker_path(self, path):
         # Container paths come from runtime mounts and are already in the worker's namespace.
         return str(path)
-
-    def close(self):
-        self._stdin.close()
-        self._stdout.close()
-        self._socket.close()
-        if self._run_trace:
-            self._run_trace.close()
 
     def __enter__(self):
         return self
